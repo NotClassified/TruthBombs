@@ -19,7 +19,7 @@ public class Player : NetworkBehaviour
         {
             owningPlayer = this;
 
-            State_EnterPlayerName.NameConfirmed += Owner_ChangeName;
+
         }
 
         playerIndex = PlayerManager.singleton.AddPlayer(gameObject);
@@ -29,13 +29,13 @@ public class Player : NetworkBehaviour
         base.OnNetworkDespawn();
         if (IsOwner)
         {
-            State_EnterPlayerName.NameConfirmed -= Owner_ChangeName;
+
         }
     }
 
 
 
-    void Owner_ChangeName(string newName)
+    public void Owner_ChangeName(string newName)
     {
         if (IsServer)
         {
@@ -48,12 +48,12 @@ public class Player : NetworkBehaviour
             ChangeName_ServerRpc(newName);
         }
     }
-    [ServerRpc]
+    [Rpc(SendTo.Server)]
     void ChangeName_ServerRpc(FixedString32Bytes newName)
     {
         ChangeName_ClientRpc(newName);
     }
-    [ClientRpc]
+    [Rpc(SendTo.NotServer)]
     void ChangeName_ClientRpc(FixedString32Bytes newName)
     {
         playerName = newName;
@@ -61,26 +61,7 @@ public class Player : NetworkBehaviour
     }
 
 
-    [Rpc(SendTo.Server)]
-    public int GetQuestionCards_Rpc()
-    {
-        return 1;
-    }
     [Rpc(SendTo.NotServer)]
-    public void UpdateQuestionCard_Rpc(int cardIndex, FixedString128Bytes newNum)
-    {
-        print("update one NotServer");
-        State_SetupQuestionCards.singleton.UpdateQuestionCard_NotServer(cardIndex, newNum);
-    }
-    [Rpc(SendTo.Server)]
-    public void UpdateAllQuestionCards_Rpc()
-    {
-        print("update all server player");
-        State_SetupQuestionCards.singleton.UpdateAllQuestionCards_Server();
-    }
-
-
-    [ClientRpc]
     public void StartGame_ClientRpc()
     {
         UIManager.singleton.ChangeUIState<State_AnswerSheet>();

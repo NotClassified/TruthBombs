@@ -7,7 +7,6 @@ using Unity.Collections;
 public class State_EnterPlayerName : StateBase
 {
     public static State_EnterPlayerName singleton;
-    public static event System.Action<string> NameConfirmed;
 
     string currentNameInput = "";
 
@@ -23,7 +22,7 @@ public class State_EnterPlayerName : StateBase
 
     public void ConfirmName()
     {
-        NameConfirmed?.Invoke(currentNameInput);
+        Player.owningPlayer.Owner_ChangeName(currentNameInput);
         UIManager.singleton.ChangeUIState<State_SetupQuestionCards>();
     }
 }

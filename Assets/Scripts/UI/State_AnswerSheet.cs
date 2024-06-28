@@ -27,31 +27,13 @@ public class State_AnswerSheet : StateBase
 
         m_questionCardButtons.Clear();
 
-        foreach (FixedString128Bytes card in GameManager.singleton.questionCards)
+        foreach (FixedString128Bytes card in GameManager.singleton.GetCurrentQuestionCards())
         {
             GameObject cardObject = Instantiate(questionCardPrefab, questionCardParent);
             m_questionCardButtons.Add(cardObject.GetComponent<Button>());
 
             TextMeshProUGUI cardText = cardObject.GetComponentInChildren<TextMeshProUGUI>();
             cardText.text = card.ToString();
-        }
-
-        //amount of question cards that a player can answer for others but not themself
-        for (int i = 0; i < PlayerManager.singleton.allPlayers.Count - 1; i++)
-        {
-            GameObject cardObject;
-
-            if (i < questionCardParent.childCount)
-            {
-                cardObject = questionCardParent.GetChild(i).gameObject;
-            }
-            else
-            {
-                cardObject = Instantiate(questionCardPrefab, questionCardParent);
-                GameManager.singleton.questionCards.Add("1");
-            }
-
-            m_questionCardButtons.Add(cardObject.GetComponent<Button>());
         }
 
         for (int i = 0; i < m_questionCardButtons.Count; i++)
