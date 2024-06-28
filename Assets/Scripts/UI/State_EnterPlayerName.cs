@@ -17,12 +17,16 @@ public class State_EnterPlayerName : StateBase
 
     public void NewTextInput(string newText)
     {
+        if (newText.Length > 32)
+            return; //prevent a name that exceeds the "FixedString32Bytes" size
+
         currentNameInput = newText;
     }
 
     public void ConfirmName()
     {
-        Player.owningPlayer.Owner_ChangeName(currentNameInput);
+        PlayerManager.singleton.ChangePlayerName_Rpc(Player.owningPlayer.playerIndex, currentNameInput);
+
         UIManager.singleton.ChangeUIState<State_SetupQuestionCards>();
     }
 }

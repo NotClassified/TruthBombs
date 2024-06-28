@@ -4,13 +4,16 @@ using UnityEngine;
 using Unity.Collections;
 using Unity.Netcode;
 using static AnswerSheet;
+using static UnityEngine.GraphicsBuffer;
 
 public class GameManager : NetworkBehaviour
 {
+    //========================================================================
     public static GameManager singleton;
 
     public List<AnswerSheet> answerSheets = new();
 
+    //========================================================================
     public static event System.Action QuestionCardsUpdated;
     public List<int> currentQuestionCards = new();
     public FixedString128Bytes[] possibleQuestionCards = {
@@ -27,13 +30,16 @@ public class GameManager : NetworkBehaviour
     private void Awake()
     {
         singleton = this;
+    }
 
+    public void SubscribeEventsForServer()
+    {
         PlayerManager.PlayerAdded += AddQuestionCard;
         PlayerManager.PlayerAdded += AddPlayerAnswerSheet;
     }
 
     //========================================================================
-    public void AddQuestionCard()
+    void AddQuestionCard()
     {
         //add the amount of question cards that a player can answer for others but not themself
         if (PlayerManager.singleton.playerCount == 1)
@@ -42,6 +48,8 @@ public class GameManager : NetworkBehaviour
         currentQuestionCards.Add(currentQuestionCards.Count);
 
         QuestionCardsUpdated?.Invoke();
+
+        SyncCurrentQuestionCardsOnClients_Host();
     }
     public List<FixedString128Bytes> GetCurrentQuestionCards()
     {
@@ -52,7 +60,7 @@ public class GameManager : NetworkBehaviour
         }
         return questionCards;
     }
-    public void ChangeQuestionCard(int cardIndex)
+    public void ChangeQuestionCard_Host(int cardIndex)
     {
         if (++currentQuestionCards[cardIndex] >= possibleQuestionCards.Length)
         {
@@ -60,36 +68,82 @@ public class GameManager : NetworkBehaviour
         }
 
         QuestionCardsUpdated?.Invoke();
-    }
 
-    //========================================================================
-    public void SyncCurrentQuestionCards()
-    {
-        SyncCurrentQuestionCards_Rpc(RpcTarget.Owner);
+        SyncCurrentQuestionCardsOnClients_Host();
     }
-    [Rpc(SendTo.Server)]
-    void SyncCurrentQuestionCards_Rpc(RpcParams targetRPC)
+    void ChangeQuestionCard_Client(int cardIndex, int card)
     {
-        for (int i = 0; i < currentQuestionCards.Count; i++)
-        {
-            SyncSingleQuestionCard_Rpc(i, currentQuestionCards[i], targetRPC);
-        }
-    }
-    [Rpc(SendTo.SpecifiedInParams)]
-    void SyncSingleQuestionCard_Rpc(int cardIndex, int card, RpcParams targetRPC)
-    {
-        if (cardIndex > currentQuestionCards.Count)
-            Debug.LogError("question cards not updating in order");
-
         if (cardIndex == currentQuestionCards.Count)
             currentQuestionCards.Add(card);
         else
             currentQuestionCards[cardIndex] = card;
+    }
 
+    //========================================================================
+    void SyncCurrentQuestionCardsOnClients_Host()
+    {
+        for (int i = 0; i < currentQuestionCards.Count; i++)
+        {
+            SyncSingleQuestionCard_ClientRpc(i, currentQuestionCards[i]);
+        }
+        FinishedQuestionCardSync_ClientRpc();
+    }
+    [Rpc(SendTo.NotServer)]
+    void SyncSingleQuestionCard_ClientRpc(int cardIndex, int card)
+    {
+        print("any client syncing a question card");
+        if (cardIndex > currentQuestionCards.Count)
+            Debug.LogError("question cards not updating in order");
+
+        ChangeQuestionCard_Client(cardIndex, card);
+    }
+    [Rpc(SendTo.NotServer)]
+    void FinishedQuestionCardSync_ClientRpc()
+    {
+        print("any client question card sync finished");
         QuestionCardsUpdated?.Invoke();
     }
 
     //========================================================================
+    public void SyncCurrentQuestionCards_TargetClient()
+    {
+        SyncCurrentQuestionCards_TargetRpc(RpcTarget.Owner);
+    }
+    [Rpc(SendTo.Server, AllowTargetOverride = true)]
+    void SyncCurrentQuestionCards_TargetRpc(RpcParams targetRpc)
+    {
+        print("server syncing question cards");
+
+        RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
+        for (int i = 0; i < currentQuestionCards.Count; i++)
+        {
+            SyncSingleQuestionCard_TargetRpc(i, currentQuestionCards[i], target);
+        }
+        FinishedQuestionCardSync_TargetRpc(target);
+    }
+    [Rpc(SendTo.SpecifiedInParams)]
+    void SyncSingleQuestionCard_TargetRpc(int cardIndex, int card, RpcParams targetRPC)
+    {
+        print("target client syncing a question card");
+        if (cardIndex > currentQuestionCards.Count)
+            Debug.LogError("question cards not updating in order");
+
+        ChangeQuestionCard_Client(cardIndex, card);
+    }
+    [Rpc(SendTo.SpecifiedInParams)]
+    void FinishedQuestionCardSync_TargetRpc(RpcParams targetRPC)
+    {
+        print("target client question card sync finished");
+        QuestionCardsUpdated?.Invoke();
+    }
+
+    //========================================================================
+    [Rpc(SendTo.Everyone)]
+    public void StartAnswering_Rpc()
+    {
+        UIManager.singleton.ChangeUIState<State_AnswerSheet>();
+    }
+
     void AddPlayerAnswerSheet()
     {
         answerSheets.Add(new AnswerSheet());

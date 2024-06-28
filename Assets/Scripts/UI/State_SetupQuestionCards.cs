@@ -19,7 +19,7 @@ public class State_SetupQuestionCards : StateBase
     public GameObject questionCardPrefab;
     List<GameObject> m_questionCardObjects = new();
 
-    event UnityAction StartGameCallback = () => { Player.owningPlayer.StartGame_ClientRpc(); };
+    event UnityAction StartGameCallback = () => { GameManager.singleton.StartAnswering_Rpc(); };
 
     private void Awake()
     {
@@ -46,8 +46,7 @@ public class State_SetupQuestionCards : StateBase
         }
         else
         {
-            print("update all client state");
-            GameManager.singleton.SyncCurrentQuestionCards();
+            GameManager.singleton.SyncCurrentQuestionCards_TargetClient();
         }
     }
 
@@ -79,11 +78,11 @@ public class State_SetupQuestionCards : StateBase
                 {
                     int cardIndex = i;
                     m_questionCardObjects[i].GetComponent<Button>().onClick.AddListener(
-                        () => { GameManager.singleton.ChangeQuestionCard(cardIndex); }
+                        () => { GameManager.singleton.ChangeQuestionCard_Host(cardIndex); }
                     );
                 }
             }
-            m_questionCardObjects[i].GetComponent<TextMeshProUGUI>().SetText(questionCards[i].ToString());
+            m_questionCardObjects[i].transform.GetChild(0).GetComponent<TextMeshProUGUI>().SetText(questionCards[i].ToString());
 
             Button cardButton = m_questionCardObjects[i].GetComponent<Button>();
             cardButton.interactable = Player.owningPlayer.IsServer;

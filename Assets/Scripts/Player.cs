@@ -6,7 +6,6 @@ using Unity.Collections;
 
 public class Player : NetworkBehaviour
 {
-    //private readonly NetworkVariable<FixedString32Bytes> m_netPlayerName = new(writePerm: NetworkVariableWritePermission.Owner);
     public static Player owningPlayer;
     public FixedString32Bytes playerName;
 
@@ -19,10 +18,11 @@ public class Player : NetworkBehaviour
         {
             owningPlayer = this;
 
-
+            if (IsServer)
+                GameManager.singleton.SubscribeEventsForServer();
         }
 
-        playerIndex = PlayerManager.singleton.AddPlayer(gameObject);
+        PlayerManager.singleton.AddPlayer(gameObject);
     }
     public override void OnNetworkDespawn()
     {
@@ -61,16 +61,16 @@ public class Player : NetworkBehaviour
     }
 
 
-    [Rpc(SendTo.NotServer)]
-    public void StartGame_ClientRpc()
-    {
-        UIManager.singleton.ChangeUIState<State_AnswerSheet>();
-    }
-
-
-    [ServerRpc]
-    public void AddAsnwer_ServerRpc(int playerIndex, int answerSheetIndex, int cardIndex, FixedString128Bytes newAnswer)
-    {
-
-    }
+    //[Rpc(SendTo.NotServer)]
+    //public void StartGame_ClientRpc()
+    //{
+    //    UIManager.singleton.ChangeUIState<State_AnswerSheet>();
+    //}
+    //
+    //
+    //[ServerRpc]
+    //public void AddAsnwer_ServerRpc(int playerIndex, int answerSheetIndex, int cardIndex, FixedString128Bytes newAnswer)
+    //{
+    //
+    //}
 }

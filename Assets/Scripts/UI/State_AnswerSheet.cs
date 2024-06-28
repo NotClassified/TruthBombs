@@ -60,7 +60,7 @@ public class State_AnswerSheet : StateBase
 
     public void ConfirmAnswer()
     {
-        Player.owningPlayer.AddAsnwer_ServerRpc(Player.owningPlayer.playerIndex, currentAnswerSheetindex, selectedQuestionCardIndex, answerInput.text);
+        //Player.owningPlayer.AddAsnwer_ServerRpc(Player.owningPlayer.playerIndex, currentAnswerSheetindex, selectedQuestionCardIndex, answerInput.text);
         
 
     }
