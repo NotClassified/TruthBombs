@@ -13,8 +13,8 @@ public class PlayerManager : NetworkBehaviour
 
     //========================================================================
     public int playerCount = 0;
-    public List<GameObject> allPlayerObjects = new List<GameObject>();
-    public List<Player> allPlayers = new List<Player>();
+    public List<GameObject> allPlayerObjects = new();
+    public List<Player> allPlayers = new();
 
     //========================================================================
     private void Awake()
@@ -39,6 +39,17 @@ public class PlayerManager : NetworkBehaviour
         playerCount++;
 
         PlayerAdded?.Invoke();
+    }
+
+    public RpcParams GetPlayerRpcParams(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= playerCount)
+        {
+            Debug.LogError("player index out of range " + playerIndex);
+            return null;
+        }
+
+        return RpcTarget.Single(allPlayers[playerIndex].OwnerClientId, RpcTargetUse.Temp);
     }
 
     //========================================================================

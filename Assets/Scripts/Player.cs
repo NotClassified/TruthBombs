@@ -32,45 +32,4 @@ public class Player : NetworkBehaviour
 
         }
     }
-
-
-
-    public void Owner_ChangeName(string newName)
-    {
-        if (IsServer)
-        {
-            print(gameObject.name + ", " + newName + ", ownerserver");
-            ChangeName_ClientRpc(newName);
-        }
-        else
-        {
-            print(gameObject.name + ", " + newName + ", ownerclient");
-            ChangeName_ServerRpc(newName);
-        }
-    }
-    [Rpc(SendTo.Server)]
-    void ChangeName_ServerRpc(FixedString32Bytes newName)
-    {
-        ChangeName_ClientRpc(newName);
-    }
-    [Rpc(SendTo.NotServer)]
-    void ChangeName_ClientRpc(FixedString32Bytes newName)
-    {
-        playerName = newName;
-        print(gameObject.name + ", " + playerName + ", ClientRpc");
-    }
-
-
-    //[Rpc(SendTo.NotServer)]
-    //public void StartGame_ClientRpc()
-    //{
-    //    UIManager.singleton.ChangeUIState<State_AnswerSheet>();
-    //}
-    //
-    //
-    //[ServerRpc]
-    //public void AddAsnwer_ServerRpc(int playerIndex, int answerSheetIndex, int cardIndex, FixedString128Bytes newAnswer)
-    //{
-    //
-    //}
 }

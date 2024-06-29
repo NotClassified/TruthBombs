@@ -11,8 +11,6 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static GameManager singleton;
 
-    public List<AnswerSheet> answerSheets = new();
-
     //========================================================================
     public static event System.Action QuestionCardsUpdated;
     public List<int> currentQuestionCards = new();
@@ -27,6 +25,14 @@ public class GameManager : NetworkBehaviour
     };
 
     //========================================================================
+    public static event System.Action<AnswerSheet> NewPendingAnswerSheet;
+    public static event System.Action NoMorePendingAnswerSheets;
+    public List<AnswerSheet> answerSheets = new();
+
+    //========================================================================
+    public static event System.Action AllPlayersFinishedAnswering;
+
+    //========================================================================
     private void Awake()
     {
         singleton = this;
@@ -35,7 +41,6 @@ public class GameManager : NetworkBehaviour
     public void SubscribeEventsForServer()
     {
         PlayerManager.PlayerAdded += AddQuestionCard;
-        PlayerManager.PlayerAdded += AddPlayerAnswerSheet;
     }
 
     //========================================================================
@@ -53,7 +58,7 @@ public class GameManager : NetworkBehaviour
     }
     public List<FixedString128Bytes> GetCurrentQuestionCards()
     {
-        List<FixedString128Bytes> questionCards = new List<FixedString128Bytes>();
+        List<FixedString128Bytes> questionCards = new();
         foreach (int cardIndex in currentQuestionCards)
         {
             questionCards.Add(possibleQuestionCards[cardIndex]);
@@ -91,7 +96,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.NotServer)]
     void SyncSingleQuestionCard_ClientRpc(int cardIndex, int card)
     {
-        print("any client syncing a question card");
         if (cardIndex > currentQuestionCards.Count)
             Debug.LogError("question cards not updating in order");
 
@@ -100,7 +104,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.NotServer)]
     void FinishedQuestionCardSync_ClientRpc()
     {
-        print("any client question card sync finished");
         QuestionCardsUpdated?.Invoke();
     }
 
@@ -112,8 +115,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Server, AllowTargetOverride = true)]
     void SyncCurrentQuestionCards_TargetRpc(RpcParams targetRpc)
     {
-        print("server syncing question cards");
-
         RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
         for (int i = 0; i < currentQuestionCards.Count; i++)
         {
@@ -124,7 +125,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.SpecifiedInParams)]
     void SyncSingleQuestionCard_TargetRpc(int cardIndex, int card, RpcParams targetRPC)
     {
-        print("target client syncing a question card");
         if (cardIndex > currentQuestionCards.Count)
             Debug.LogError("question cards not updating in order");
 
@@ -133,7 +133,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.SpecifiedInParams)]
     void FinishedQuestionCardSync_TargetRpc(RpcParams targetRPC)
     {
-        print("target client question card sync finished");
         QuestionCardsUpdated?.Invoke();
     }
 
@@ -141,26 +140,157 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Everyone)]
     public void StartAnswering_Rpc()
     {
+        //answer sheet for each player
+        for (int i = 0; i < PlayerManager.singleton.playerCount; i++)
+        {
+            answerSheets.Add(new AnswerSheet(currentQuestionCards.Count, i));
+        }
+
         UIManager.singleton.ChangeUIState<State_AnswerSheet>();
+
+        //have this player take the answer sheet of the player before
+        int firstAnswerSheetIndex = Player.owningPlayer.playerIndex - 1;
+        if (firstAnswerSheetIndex < 0)
+            firstAnswerSheetIndex = answerSheets.Count - 1; //last index
+
+        NewPendingAnswerSheet?.Invoke(answerSheets[firstAnswerSheetIndex]);
     }
 
-    void AddPlayerAnswerSheet()
+    //========================================================================
+    public void SyncAnswerSheet(int answerSheetIndex, int cardIndex, FixedString128Bytes newAnswer)
     {
-        answerSheets.Add(new AnswerSheet());
+        SyncAnswerSheet_ServerRpc(
+            answerSheetIndex, 
+            cardIndex, 
+            Player.owningPlayer.playerIndex, 
+            newAnswer, 
+            RpcTarget.Owner);
+
+    }
+    [Rpc(SendTo.Server, AllowTargetOverride = true)]
+    void SyncAnswerSheet_ServerRpc(
+        int answerSheetIndex, 
+        int cardIndex, 
+        int answeringPlayerIndex,
+        FixedString128Bytes newAnswer,
+        RpcParams targetRpc)
+    {
+        print("SyncAnswerSheet_ServerRpc");
+        //apply modifications to the answer sheets
+        answerSheets[answerSheetIndex].cardAnswers[cardIndex].answeringPlayerIndex = answeringPlayerIndex;
+        answerSheets[answerSheetIndex].cardAnswers[cardIndex].answerString = newAnswer;
+
+        if (IsAllAnswerSheetsFinished_Host())
+        {
+            AllAnswersFinished_Rpc();
+            return;
+        }
+
+        int nextAnsweringPlayerIndex = answeringPlayerIndex + 1;
+        if (nextAnsweringPlayerIndex >= answerSheets.Count)
+            nextAnsweringPlayerIndex = 0;
+
+        //will the next player recieving this answer sheet NOT also be the target player
+        if (nextAnsweringPlayerIndex != answerSheetIndex)
+        {
+            //send answer sheet to next player
+            if (nextAnsweringPlayerIndex == Player.owningPlayer.playerIndex)
+            {
+                NewPendingAnswerSheet?.Invoke(answerSheets[answerSheetIndex]);
+            }
+            else
+            {
+                RpcParams nextAnsweringClientRpc = PlayerManager.singleton.GetPlayerRpcParams(nextAnsweringPlayerIndex);
+
+                for (int i = 0; i < answerSheets[answerSheetIndex].cardAnswers.Count; i++)
+                {
+                    SyncAnswer_TargetRpc(
+                        answerSheetIndex,
+                        i,
+                        answerSheets[answerSheetIndex].cardAnswers[i].answeringPlayerIndex,
+                        answerSheets[answerSheetIndex].cardAnswers[i].answerString,
+                        nextAnsweringClientRpc);
+                }
+                FinishedAddingPendingAnswerSheet_TargetRpc(answerSheetIndex, nextAnsweringClientRpc);
+            }
+        }
+        else
+        {
+            RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
+            NoMorePendingAnswerSheets_TargetRpc(target);
+        }
+    }
+    [Rpc(SendTo.SpecifiedInParams)]
+    void SyncAnswer_TargetRpc(
+        int answerSheetIndex,
+        int cardIndex,
+        int answeringPlayerIndex,
+        FixedString128Bytes newAnswer,
+        RpcParams targetRpc)
+    {
+        print("SyncAnswer_TargetRpc");
+        answerSheets[answerSheetIndex].cardAnswers[cardIndex].answeringPlayerIndex = answeringPlayerIndex;
+        answerSheets[answerSheetIndex].cardAnswers[cardIndex].answerString = newAnswer;
     }
 
-    public void AddAnswer(int answerSheetIndex, int cardIndex, CardAnswer newAnswer)
+    //========================================================================
+    [Rpc(SendTo.SpecifiedInParams)]
+    void FinishedAddingPendingAnswerSheet_TargetRpc(
+        int answerSheetIndex,
+        RpcParams targetRpc)
     {
-        answerSheets[answerSheetIndex].cardAnswers[cardIndex] = newAnswer;
+        print("FinishedAddingPendingAnswerSheet_TargetRpc");
+        NewPendingAnswerSheet?.Invoke(answerSheets[answerSheetIndex]);
+    }
+
+    [Rpc(SendTo.SpecifiedInParams)]
+    void NoMorePendingAnswerSheets_TargetRpc(RpcParams targetRpc)
+    {
+        print("NoMorePendingAnswerSheets_TargetRpc");
+        NoMorePendingAnswerSheets?.Invoke();
+    }
+
+    //========================================================================
+
+    bool IsAllAnswerSheetsFinished_Host()
+    {
+        foreach (AnswerSheet sheet in answerSheets)
+        {
+            foreach (CardAnswer answer in sheet.cardAnswers)
+            {
+                if (answer.answeringPlayerIndex == -1)
+                    return false; //this answer hasn't been answered yet
+            }
+        }
+        return true; //all answers have been answered
+    }
+    //the last player answering a question has finished, presentation will now begin
+    [Rpc(SendTo.Everyone)]
+    void AllAnswersFinished_Rpc()
+    {
+        AllPlayersFinishedAnswering?.Invoke();
     }
 }
 
+[System.Serializable]
 public class AnswerSheet
 {
+    [System.Serializable]
     public class CardAnswer
     {
         public int answeringPlayerIndex = -1;
         public FixedString128Bytes answerString;
     }
-    public List<CardAnswer> cardAnswers = new List<CardAnswer>();
+
+    public int targetPlayerIndex;
+    public List<CardAnswer> cardAnswers = new();
+
+    public AnswerSheet(int cardCount, int targetPlayerIndex)
+    {
+        this.targetPlayerIndex = targetPlayerIndex;
+        for (int i = 0; i < cardCount; i++)
+        {
+            cardAnswers.Add(new CardAnswer());
+        }
+    }
 }

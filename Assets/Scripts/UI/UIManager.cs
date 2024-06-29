@@ -11,6 +11,8 @@ public class UIManager : MonoBehaviour
     private void Awake()
     {
         singleton = this;
+
+        GameManager.AllPlayersFinishedAnswering += ChangeUIState<State_Presentation>;
     }
     private void Start()
     {
