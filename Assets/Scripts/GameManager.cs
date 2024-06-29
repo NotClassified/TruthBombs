@@ -30,7 +30,22 @@ public class GameManager : NetworkBehaviour
     public List<AnswerSheet> answerSheets = new();
 
     //========================================================================
-    public static event System.Action AllPlayersFinishedAnswering;
+    public static event System.Action StartPresentation;
+    public static event System.Action PresentedNextSheet;
+    public static event System.Action PresentationFinished;
+
+    public static event System.Action<int /*sheetIndex*/, int /*answerIndex*/> RevealAnswer;
+    public static event System.Action LastSheetAnswerRevealed;
+
+    public static event System.Action GuessConfirmed;
+
+
+    private int m_firstPresentedSheet;
+    private int m_presentationSheetIndex;
+    private int m_presentationAnswerIndex;
+
+    public List<int> playerScores = new();
+
 
     //========================================================================
     private void Awake()
@@ -182,13 +197,12 @@ public class GameManager : NetworkBehaviour
 
         if (IsAllAnswerSheetsFinished_Host())
         {
-            AllAnswersFinished_Rpc();
+            AllAnswersFinished_Host();
             return;
         }
 
-        int nextAnsweringPlayerIndex = answeringPlayerIndex + 1;
-        if (nextAnsweringPlayerIndex >= answerSheets.Count)
-            nextAnsweringPlayerIndex = 0;
+        
+        int nextAnsweringPlayerIndex = PlayerManager.singleton.GetPlayerIndex(answeringPlayerIndex, 1);
 
         //will the next player recieving this answer sheet NOT also be the target player
         if (nextAnsweringPlayerIndex != answerSheetIndex)
@@ -228,7 +242,16 @@ public class GameManager : NetworkBehaviour
         FixedString128Bytes newAnswer,
         RpcParams targetRpc)
     {
-        print("SyncAnswer_TargetRpc");
+        answerSheets[answerSheetIndex].cardAnswers[cardIndex].answeringPlayerIndex = answeringPlayerIndex;
+        answerSheets[answerSheetIndex].cardAnswers[cardIndex].answerString = newAnswer;
+    }
+    [Rpc(SendTo.NotServer)]
+    void SyncAnswerSheet_ClientRpc(
+        int answerSheetIndex,
+        int cardIndex,
+        int answeringPlayerIndex,
+        FixedString128Bytes newAnswer)
+    {
         answerSheets[answerSheetIndex].cardAnswers[cardIndex].answeringPlayerIndex = answeringPlayerIndex;
         answerSheets[answerSheetIndex].cardAnswers[cardIndex].answerString = newAnswer;
     }
@@ -251,7 +274,6 @@ public class GameManager : NetworkBehaviour
     }
 
     //========================================================================
-
     bool IsAllAnswerSheetsFinished_Host()
     {
         foreach (AnswerSheet sheet in answerSheets)
@@ -265,11 +287,94 @@ public class GameManager : NetworkBehaviour
         return true; //all answers have been answered
     }
     //the last player answering a question has finished, presentation will now begin
-    [Rpc(SendTo.Everyone)]
-    void AllAnswersFinished_Rpc()
+    void AllAnswersFinished_Host()
     {
-        AllPlayersFinishedAnswering?.Invoke();
+        //send all the answer sheets to sync with the clients
+        for (int i = 0; i < answerSheets.Count; i++)
+        {
+            for (int cardIndex = 0; cardIndex < answerSheets[i].cardAnswers.Count; cardIndex++)
+            {
+                SyncAnswerSheet_ClientRpc(
+                    i,
+                    cardIndex,
+                    answerSheets[i].cardAnswers[cardIndex].answeringPlayerIndex,
+                    answerSheets[i].cardAnswers[cardIndex].answerString);
+            }
+        }
+
+        //start presentation
+        int randomPlayer = Random.Range(0, PlayerManager.singleton.playerCount);
+        StartPresentation_Rpc(randomPlayer);
     }
+
+    //========================================================================
+    //the last player answering a question has finished, presentation will now begin
+    [Rpc(SendTo.Everyone)]
+    void StartPresentation_Rpc(int startPlayerIndex)
+    {
+        m_firstPresentedSheet = startPlayerIndex;
+        m_presentationSheetIndex = startPlayerIndex;
+        m_presentationAnswerIndex = 0;
+
+        StartPresentation?.Invoke();
+    }
+    [Rpc(SendTo.Everyone)]
+    public void RevealAnswer_Rpc()
+    {
+        RevealAnswer?.Invoke(m_presentationSheetIndex, m_presentationAnswerIndex);
+
+        m_presentationAnswerIndex++;
+        if (m_presentationAnswerIndex >= answerSheets[m_presentationSheetIndex].cardAnswers.Count)
+        {
+            m_presentationAnswerIndex = 0;
+
+            LastSheetAnswerRevealed?.Invoke();
+        }
+    }
+    [Rpc(SendTo.Everyone)]
+    public void ConfirmFavoriteAnswer_Rpc(int favoritedAnswerIndex)
+    {
+        answerSheets[m_presentationSheetIndex].favoriteAnswerIndex = favoritedAnswerIndex;
+        playerScores[answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex()]++;
+    }
+    [Rpc(SendTo.Everyone)]
+    public void ConfirmPlayerGuess_Rpc(int playerGuess)
+    {
+        //add points to targeted player (guesser) if they guessed correctly
+        if (playerGuess == answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex())
+        {
+            playerScores[m_presentationSheetIndex]++;
+        }
+
+        GuessConfirmed?.Invoke();
+    }
+    [Rpc(SendTo.Everyone)]
+    public void ConfirmScoreBoard_Rpc()
+    {
+        //present the next sheet
+        m_presentationSheetIndex++;
+        if (m_presentationSheetIndex >= answerSheets.Count)
+            m_presentationSheetIndex = 0;
+
+        if (m_presentationSheetIndex != m_firstPresentedSheet) //the next sheet is a new sheet?
+        {
+            PresentedNextSheet?.Invoke();
+        }
+        else //all sheets have been presented
+        {
+            PresentationFinished?.Invoke();
+        }
+    }
+    public int GetPlayerReaderIndex()
+    {
+        return PlayerManager.singleton.GetPlayerIndex(m_presentationSheetIndex, -1);
+    }
+    public int GetPresentingSheetIndex()
+    {
+        return m_presentationSheetIndex;
+    }
+
+    //========================================================================
 }
 
 [System.Serializable]
@@ -283,6 +388,7 @@ public class AnswerSheet
     }
 
     public int targetPlayerIndex;
+    public int favoriteAnswerIndex;
     public List<CardAnswer> cardAnswers = new();
 
     public AnswerSheet(int cardCount, int targetPlayerIndex)
@@ -293,4 +399,6 @@ public class AnswerSheet
             cardAnswers.Add(new CardAnswer());
         }
     }
+
+    public int GetFavoritedPlayerIndex() => cardAnswers[favoriteAnswerIndex].answeringPlayerIndex;
 }

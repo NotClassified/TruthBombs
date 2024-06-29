@@ -73,4 +73,19 @@ public class PlayerManager : NetworkBehaviour
     {
         allPlayers[playerIndex].playerName = playerName;
     }
+
+    //========================================================================
+    public FixedString32Bytes GetPlayerName(int playerIndex) => allPlayers[playerIndex].playerName;
+    public int GetPlayerIndex(int playerIndex, int increment)
+    {
+        if (playerIndex + increment < 0) //below valid range
+            return playerCount; 
+
+        if (playerIndex + increment >= playerCount) //above valid range
+            return 0;
+
+        return playerIndex + increment;
+    }
+
+    //========================================================================
 }

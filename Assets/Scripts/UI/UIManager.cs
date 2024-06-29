@@ -6,13 +6,18 @@ public class UIManager : MonoBehaviour
 {
     public static UIManager singleton;
 
+    public Color selectedUIColor;
+    public Color unselectedUIColor;
+    public Color unavailableUIColor;
+
     StateBase currentState;
 
     private void Awake()
     {
         singleton = this;
 
-        GameManager.AllPlayersFinishedAnswering += ChangeUIState<State_Presentation>;
+        GameManager.StartPresentation += ChangeUIState<State_Presentation>;
+        GameManager.PresentationFinished += ChangeUIState<State_SetupQuestionCards>;
     }
     private void Start()
     {

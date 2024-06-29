@@ -10,22 +10,23 @@ using System.Reflection;
 public class State_AnswerSheet : StateBase
 {
     //========================================================================
+    public TextMeshProUGUI targetPlayerNameText;
+
+    //========================================================================
     public Transform questionCardParent;
     public GameObject questionCardPrefab;
     List<Button> m_questionCardButtons = new();
 
     //========================================================================
-    public Color selectedCardColor;
-    public Color unselectedCardColor;
-    public Color unavailableCardColor;
-
     int m_selectedQuestionCardIndex = -1;
 
     List<AnswerSheet> m_pendingAnswerSheets = new();
 
+    //========================================================================
     public TMP_InputField answerInput;
     string m_currentAnswerInput;
 
+    public Button confirmAnswerButton;
 
     //========================================================================
     public override void OnEnter()
@@ -37,6 +38,10 @@ public class State_AnswerSheet : StateBase
 
         //set question cards
         {
+            foreach (Button card in m_questionCardButtons)
+            {
+                Destroy(card.gameObject);
+            }
             m_questionCardButtons.Clear();
 
             foreach (FixedString128Bytes card in GameManager.singleton.GetCurrentQuestionCards())
@@ -44,7 +49,7 @@ public class State_AnswerSheet : StateBase
                 GameObject cardObject = Instantiate(questionCardPrefab, questionCardParent);
                 m_questionCardButtons.Add(cardObject.GetComponent<Button>());
 
-                cardObject.GetComponent<Button>().image.color = unselectedCardColor;
+                cardObject.GetComponent<Button>().image.color = UIManager.singleton.unselectedUIColor;
 
                 TextMeshProUGUI cardText = cardObject.GetComponentInChildren<TextMeshProUGUI>();
                 cardText.text = card.ToString();
@@ -91,20 +96,28 @@ public class State_AnswerSheet : StateBase
             if (m_pendingAnswerSheets[0].cardAnswers[i].answeringPlayerIndex != -1)
             {
                 m_questionCardButtons[i].interactable = false;
-                m_questionCardButtons[i].image.color = unavailableCardColor;
+                m_questionCardButtons[i].image.color = UIManager.singleton.unavailableUIColor;
             }
             else
             {
                 m_questionCardButtons[i].interactable = true;
-                m_questionCardButtons[i].image.color = unselectedCardColor;
+                m_questionCardButtons[i].image.color = UIManager.singleton.unselectedUIColor;
             }
         }
 
+        //target player's name
+        string targetName = PlayerManager.singleton.GetPlayerName(m_pendingAnswerSheets[0].targetPlayerIndex).ToString();
+        targetPlayerNameText.SetText("Answer for: " + targetName);
+
+        //reset various elements
         m_selectedQuestionCardIndex = -1;
 
         answerInput.interactable = true;
         answerInput.text = "";
         m_currentAnswerInput = "";
+
+        confirmAnswerButton.interactable = false;
+        confirmAnswerButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Please Select a Card");
     }
 
     //========================================================================
@@ -113,14 +126,17 @@ public class State_AnswerSheet : StateBase
         UnselectCard(m_selectedQuestionCardIndex); //reset previous selected card
 
         m_selectedQuestionCardIndex = cardIndex;
-        m_questionCardButtons[cardIndex].image.color = selectedCardColor;
+        m_questionCardButtons[cardIndex].image.color = UIManager.singleton.selectedUIColor;
+
+        confirmAnswerButton.interactable = true;
+        confirmAnswerButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Confirm Your Answer");
     }
     void UnselectCard(int cardIndex)
     {
         if (m_selectedQuestionCardIndex == -1)
             return; //there wasn't a previous selected card
 
-        m_questionCardButtons[cardIndex].image.color = unselectedCardColor;
+        m_questionCardButtons[cardIndex].image.color = UIManager.singleton.unselectedUIColor;
     }
 
     //========================================================================
@@ -155,7 +171,7 @@ public class State_AnswerSheet : StateBase
         for (int i = 0; i < m_questionCardButtons.Count; i++)
         {
             m_questionCardButtons[i].interactable = false;
-            m_questionCardButtons[i].image.color = unavailableCardColor;
+            m_questionCardButtons[i].image.color = UIManager.singleton.unavailableUIColor;
         }
 
         answerInput.interactable = false;
