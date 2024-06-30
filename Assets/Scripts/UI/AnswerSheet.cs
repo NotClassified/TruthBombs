@@ -41,12 +41,6 @@ namespace UIState
 
             //set question cards
             {
-                foreach (Button card in m_questionCardButtons)
-                {
-                    Destroy(card.gameObject);
-                }
-                m_questionCardButtons.Clear();
-
                 foreach (FixedString128Bytes card in GameManager.singleton.GetCurrentQuestionCards())
                 {
                     GameObject cardObject = Instantiate(questionCardPrefab, questionCardParent);

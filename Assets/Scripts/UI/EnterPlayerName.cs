@@ -10,7 +10,7 @@ namespace UIState
     public class EnterPlayerName : StateBase
     {
         public static EnterPlayerName singleton;
-        public static event System.Action NameConfirmed;
+        public static event System.Action<string> NameConfirmed;
 
         string currentNameInput = "";
 
@@ -31,7 +31,7 @@ namespace UIState
         {
             PlayerManager.singleton.ChangePlayerName_Rpc(Player.owningPlayer.playerIndex, currentNameInput);
 
-            NameConfirmed?.Invoke();
+            NameConfirmed?.Invoke(currentNameInput);
         }
     }
 

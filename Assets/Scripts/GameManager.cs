@@ -10,7 +10,7 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static GameManager singleton;
 
-    private bool m_serverLock;
+    private bool m_serverLock = false;
     private int m_serverLockResponseCount;
 
     //========================================================================
@@ -55,6 +55,8 @@ public class GameManager : NetworkBehaviour
     private void Awake()
     {
         singleton = this;
+
+        PlayerManager.PlayerAdded += AddPlayerScore;
     }
 
     public void SubscribeEventsForServer()
@@ -195,6 +197,7 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Everyone)]
     public void StartAnswering_Rpc()
     {
+        answerSheets.Clear();
         //answer sheet for each player
         for (int i = 0; i < PlayerManager.singleton.playerCount; i++)
         {
@@ -211,6 +214,21 @@ public class GameManager : NetworkBehaviour
     }
 
     //========================================================================
+    public void SyncAllAnswerSheets_Host()
+    {
+        //send all the answer sheets to sync with the clients
+        for (int i = 0; i < answerSheets.Count; i++)
+        {
+            for (int cardIndex = 0; cardIndex < answerSheets[i].cardAnswers.Count; cardIndex++)
+            {
+                SyncAnswerSheet_ClientRpc(
+                    i,
+                    cardIndex,
+                    answerSheets[i].cardAnswers[cardIndex].answeringPlayerIndex,
+                    answerSheets[i].cardAnswers[cardIndex].answerString);
+            }
+        }
+    }
     public void SyncAnswerSheet(int answerSheetIndex, int cardIndex, FixedString128Bytes newAnswer)
     {
         SyncAnswerSheet_ServerRpc(
@@ -229,7 +247,6 @@ public class GameManager : NetworkBehaviour
         FixedString128Bytes newAnswer,
         RpcParams targetRpc)
     {
-        print("SyncAnswerSheet_ServerRpc");
         //apply modifications to the answer sheets
         answerSheets[answerSheetIndex].cardAnswers[cardIndex].answeringPlayerIndex = answeringPlayerIndex;
         answerSheets[answerSheetIndex].cardAnswers[cardIndex].answerString = newAnswer;
@@ -301,14 +318,12 @@ public class GameManager : NetworkBehaviour
         int answerSheetIndex,
         RpcParams targetRpc)
     {
-        print("FinishedAddingPendingAnswerSheet_TargetRpc");
         NewPendingAnswerSheet?.Invoke(answerSheets[answerSheetIndex]);
     }
 
     [Rpc(SendTo.SpecifiedInParams)]
     void NoMorePendingAnswerSheets_TargetRpc(RpcParams targetRpc)
     {
-        print("NoMorePendingAnswerSheets_TargetRpc");
         NoMorePendingAnswerSheets?.Invoke();
     }
 
@@ -328,22 +343,11 @@ public class GameManager : NetworkBehaviour
     //the last player answering a question has finished, presentation will now begin
     void AllAnswersFinished_Host()
     {
-        //send all the answer sheets to sync with the clients
-        for (int i = 0; i < answerSheets.Count; i++)
-        {
-            for (int cardIndex = 0; cardIndex < answerSheets[i].cardAnswers.Count; cardIndex++)
-            {
-                SyncAnswerSheet_ClientRpc(
-                    i,
-                    cardIndex,
-                    answerSheets[i].cardAnswers[cardIndex].answeringPlayerIndex,
-                    answerSheets[i].cardAnswers[cardIndex].answerString);
-            }
-        }
+        SyncAllAnswerSheets_Host();
 
         //start presentation
         int randomPlayer = Random.Range(0, PlayerManager.singleton.playerCount);
-        StartPresentation_Rpc(randomPlayer);
+        StartPresentation_Rpc(0);
     }
 
     //========================================================================
@@ -376,7 +380,7 @@ public class GameManager : NetworkBehaviour
     {
         answerSheets[m_presentationSheetIndex].favoriteAnswerIndex = favoritedAnswerIndex;
         playerScores[answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex()]++;
-
+        
         FavoriteAnswerConfirmed?.Invoke();
     }
     //========================================================================
@@ -394,10 +398,14 @@ public class GameManager : NetworkBehaviour
         GuessConfirmed?.Invoke();
     }
     //========================================================================
+    void AddPlayerScore()
+    {
+        playerScores.Add(0);
+    }
     [Rpc(SendTo.Server)]
     public void ConfirmScoreBoard_ServerRpc()
     {
-        if (!LockServer())
+        if (LockServer())
             return;
 
         ConfirmScoreBoard_Rpc();
@@ -454,6 +462,15 @@ public class AnswerSheet
         for (int i = 0; i < cardCount; i++)
         {
             cardAnswers.Add(new CardAnswer());
+        }
+    }
+    public void Reset()
+    {
+        favoriteAnswerIndex = -1;
+        guessedPlayerIndex = -1;
+        for (int i = 0; i < cardAnswers.Count; i++)
+        {
+            cardAnswers[i].answeringPlayerIndex = -1;
         }
     }
 

@@ -14,26 +14,11 @@ namespace UIState
 {
     public class SetupQuestionCards : StateBase
     {
-        public static SetupQuestionCards singleton;
-
         public Button startGameButton;
 
         public Transform questionCardParent;
         public GameObject questionCardPrefab;
         List<GameObject> m_questionCardObjects = new();
-
-        event UnityAction StartGameCallback = () => { GameManager.singleton.StartAnswering_Rpc(); };
-
-        private void Awake()
-        {
-            singleton = this;
-
-            if (Player.owningPlayer.IsServer)
-            {
-
-                startGameButton.onClick.AddListener(StartGameCallback);
-            }
-        }
 
         public override void OnEnter()
         {
@@ -45,6 +30,7 @@ namespace UIState
 
             if (Player.owningPlayer.IsServer)
             {
+                startGameButton.onClick.AddListener(GameManager.singleton.StartAnswering_Rpc);
                 UpdateQuestionCards(); //should have the latest version of cards
             }
             else
@@ -58,6 +44,11 @@ namespace UIState
             base.OnExit();
 
             GameManager.QuestionCardsUpdated -= UpdateQuestionCards;
+
+            if (Player.owningPlayer.IsServer)
+            {
+                startGameButton.onClick.RemoveListener(GameManager.singleton.StartAnswering_Rpc);
+            }
         }
 
         void UpdateQuestionCards()

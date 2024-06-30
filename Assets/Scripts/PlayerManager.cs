@@ -88,7 +88,7 @@ public class PlayerManager : NetworkBehaviour
     public int GetPlayerIndex(int playerIndex, int increment)
     {
         if (playerIndex + increment < 0) //below valid range
-            return playerCount; 
+            return playerCount - 1; //last player index
 
         if (playerIndex + increment >= playerCount) //above valid range
             return 0;

@@ -28,19 +28,7 @@ namespace UIState
 
             m_selectePlayerIndex = -1;
 
-            //is this the target player that will be guessing who made their favorite answer?
-            if (GameManager.singleton.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
-            {
-                actionButton.interactable = false;
-                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Select a Player");
-                actionButton.onClick.AddListener(ConfirmPlayerGuess);
-            }
-            else //not the target player
-            {
-                actionButton.interactable = false;
-                string targetPlayerName = GameManager.singleton.GetPresentingTargetPlayerName();
-                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText(targetPlayerName + " is Guessing");
-            }
+            targetPlayerNameText.SetText("Questions Answered for: " + GameManager.singleton.GetPresentingTargetPlayerName());
 
             //set player select buttons
             {
@@ -56,11 +44,35 @@ namespace UIState
                     Transform selectButton = Instantiate(playerSelectPrefab, playerSelectParent).transform;
                     m_playerSelectButtons.Add(selectButton);
 
-                    SetPlayerColor(selectButton, UIManager.singleton.unselectedUIColor);
+                    SetPlayerColor(selectButton, UIManager.singleton.defaultUIColor);
 
                     TextMeshProUGUI questionCardText = selectButton.GetComponentInChildren<TextMeshProUGUI>();
                     questionCardText.text = player.playerName.ToString();
                 }
+            }
+
+
+            //is this the target player that will be guessing who made their favorite answer?
+            if (GameManager.singleton.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
+            {
+                for (int i = 0; i < m_playerSelectButtons.Count; i++)
+                {
+                    int index = i;
+                    m_playerSelectButtons[i].GetComponent<Button>().onClick.AddListener(
+                        () => { SelectPlayer(index); }
+                    );
+                    SetPlayerColor(m_playerSelectButtons[i], UIManager.singleton.unselectedUIColor);
+                }
+
+                actionButton.interactable = false;
+                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Select a Player");
+                actionButton.onClick.AddListener(ConfirmPlayerGuess);
+            }
+            else //not the target player
+            {
+                actionButton.interactable = false;
+                string targetPlayerName = GameManager.singleton.GetPresentingTargetPlayerName();
+                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText(targetPlayerName + " is Guessing");
             }
         }
         public override void OnExit()

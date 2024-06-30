@@ -49,6 +49,8 @@ namespace UIState
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Presenting...");
             }
 
+            targetPlayerNameText.SetText("Answers for: " + GameManager.singleton.GetPresentingTargetPlayerName());
+
             //set cards
             {
                 foreach (Transform card in m_questionAnswerCards)
@@ -62,10 +64,12 @@ namespace UIState
                     Transform cardObject = Instantiate(questionAnswerCardPrefab, questionAnswerCardParent).transform;
                     m_questionAnswerCards.Add(cardObject);
 
-                    SetCardColor(cardObject, UIManager.singleton.unselectedUIColor);
+                    SetCardColor(cardObject, UIManager.singleton.defaultUIColor);
 
-                    TextMeshProUGUI questionCardText = cardObject.GetChild(0).GetComponentInChildren<TextMeshProUGUI>();
+                    TextMeshProUGUI questionCardText = cardObject.GetChild(0).GetComponent<TextMeshProUGUI>();
                     questionCardText.SetText(question.ToString());
+                    TextMeshProUGUI answerCardText = cardObject.GetChild(1).GetComponent<TextMeshProUGUI>();
+                    answerCardText.SetText("...");
                 }
             }
         }
@@ -98,8 +102,7 @@ namespace UIState
         void SetCardColor(Transform card, Color newColor)
         {
             //child 0 is the question card, child 1 is the answer card
-            card.GetChild(0).GetComponent<Button>().image.color = newColor;
-            card.GetChild(1).GetComponent<Button>().image.color = newColor;
+            card.GetComponent<Button>().image.color = newColor;
         }
 
         //========================================================================
@@ -110,7 +113,7 @@ namespace UIState
         void RevealAnswer(int sheetIndex, int answerIndex)
         {
             string revealedAnswer = GameManager.singleton.answerSheets[sheetIndex].cardAnswers[answerIndex].answerString.ToString();
-            m_questionAnswerCards[answerIndex].GetChild(1).GetComponentInChildren<TextMeshProUGUI>().SetText(revealedAnswer);
+            m_questionAnswerCards[answerIndex].GetChild(1).GetComponent<TextMeshProUGUI>().SetText(revealedAnswer);
         }
 
         void AllAnswersRevealed()
@@ -126,9 +129,10 @@ namespace UIState
                 for (int i = 0; i < m_questionAnswerCards.Count; i++)
                 {
                     int index = i;
-                    m_questionAnswerCards[i].GetComponentInChildren<Button>().onClick.AddListener(
+                    m_questionAnswerCards[i].GetComponent<Button>().onClick.AddListener(
                         () => { SelectCard(index); }
                     );
+                    SetCardColor(m_questionAnswerCards[i], UIManager.singleton.unselectedUIColor);
                 }
 
                 actionButton.onClick.AddListener(ConfirmFavoriteAnswer);
