@@ -4,7 +4,6 @@ using UnityEngine;
 using Unity.Collections;
 using Unity.Netcode;
 using static AnswerSheet;
-using static UnityEngine.GraphicsBuffer;
 
 public class GameManager : NetworkBehaviour
 {
@@ -160,8 +159,7 @@ public class GameManager : NetworkBehaviour
         {
             answerSheets.Add(new AnswerSheet(currentQuestionCards.Count, i));
         }
-
-        UIManager.singleton.ChangeUIState<State_AnswerSheet>();
+        UIManager.singleton.ChangeUIState<UIState.AnswerSheet>();
 
         //have this player take the answer sheet of the player before
         int firstAnswerSheetIndex = Player.owningPlayer.playerIndex - 1;

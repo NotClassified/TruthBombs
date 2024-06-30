@@ -2,7 +2,12 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class State_WaitForAnswers : StateBase
+
+namespace UIState
 {
+    public class GuessPlayer : StateBase
+    {
+
+    }
 
 }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UIState;
 
 public class UIManager : MonoBehaviour
 {
@@ -16,8 +17,8 @@ public class UIManager : MonoBehaviour
     {
         singleton = this;
 
-        GameManager.StartPresentation += ChangeUIState<State_Presentation>;
-        GameManager.PresentationFinished += ChangeUIState<State_SetupQuestionCards>;
+        GameManager.StartPresentation += ChangeUIState<Presentation>;
+        GameManager.PresentationFinished += ChangeUIState<SetupQuestionCards>;
     }
     private void Start()
     {
@@ -26,7 +27,7 @@ public class UIManager : MonoBehaviour
             child.gameObject.SetActive(false);
         }
 
-        singleton.ChangeUIState<State_EnterPlayerName>();
+        singleton.ChangeUIState<EnterPlayerName>();
     }
 
     public void ChangeUIState<NewState>() where NewState : StateBase
