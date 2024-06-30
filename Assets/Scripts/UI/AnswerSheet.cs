@@ -30,7 +30,7 @@ namespace UIState
         public TMP_InputField answerInput;
         string m_currentAnswerInput;
 
-        public Button confirmAnswerButton;
+        public Button actionButton;
 
         //========================================================================
         public override void OnEnter()
@@ -112,8 +112,8 @@ namespace UIState
             answerInput.text = "";
             m_currentAnswerInput = "";
 
-            confirmAnswerButton.interactable = false;
-            confirmAnswerButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Please Select a Card");
+            actionButton.interactable = false;
+            actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Please Select a Card");
         }
 
         //========================================================================
@@ -124,8 +124,8 @@ namespace UIState
             m_selectedQuestionCardIndex = cardIndex;
             m_questionCardButtons[cardIndex].image.color = UIManager.singleton.selectedUIColor;
 
-            confirmAnswerButton.interactable = true;
-            confirmAnswerButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Confirm Your Answer");
+            actionButton.interactable = true;
+            actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Confirm Your Answer");
         }
         void UnselectCard(int cardIndex)
         {
@@ -173,6 +173,9 @@ namespace UIState
             answerInput.interactable = false;
             answerInput.text = "";
             m_currentAnswerInput = "";
+
+            actionButton.interactable = false;
+            actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Waiting For Sheet");
         }
 
         //========================================================================

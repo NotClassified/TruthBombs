@@ -29,16 +29,11 @@ namespace UIState
             GameManager.RevealAnswer += RevealAnswer;
 
             m_selectedCardIndex = -1;
-            GameManager.LastSheetAnswerRevealed -= AllAnswersRevealed;
 
-            if (GameManager.singleton.GetPlayerReaderIndex() == Player.owningPlayer.playerIndex
-                || GameManager.singleton.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
+            if (GameManager.singleton.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
             {
                 GameManager.LastSheetAnswerRevealed += AllAnswersRevealed;
-            }
 
-            if (GameManager.singleton.GetPlayerReaderIndex() == Player.owningPlayer.playerIndex)
-            {
                 actionButton.interactable = true;
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Reveal Answer");
                 actionButton.onClick.AddListener(RequestAnswerReveal);
@@ -77,6 +72,7 @@ namespace UIState
         {
             base.OnExit();
 
+            GameManager.LastSheetAnswerRevealed -= AllAnswersRevealed;
             actionButton.onClick.RemoveAllListeners();
         }
 
@@ -118,27 +114,18 @@ namespace UIState
 
         void AllAnswersRevealed()
         {
-            if (GameManager.singleton.GetPlayerReaderIndex() == Player.owningPlayer.playerIndex)
+            for (int i = 0; i < m_questionAnswerCards.Count; i++)
             {
-                actionButton.onClick.RemoveListener(RequestAnswerReveal);
-                actionButton.interactable = false;
-                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Presenting...");
+                int index = i;
+                m_questionAnswerCards[i].GetComponent<Button>().onClick.AddListener(
+                    () => { SelectCard(index); }
+                );
+                SetCardColor(m_questionAnswerCards[i], UIManager.singleton.unselectedUIColor);
             }
-            else //this is the target player
-            {
-                for (int i = 0; i < m_questionAnswerCards.Count; i++)
-                {
-                    int index = i;
-                    m_questionAnswerCards[i].GetComponent<Button>().onClick.AddListener(
-                        () => { SelectCard(index); }
-                    );
-                    SetCardColor(m_questionAnswerCards[i], UIManager.singleton.unselectedUIColor);
-                }
 
-                actionButton.onClick.AddListener(ConfirmFavoriteAnswer);
-                actionButton.interactable = false;
-                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Select a Favorite Answer");
-            }
+            actionButton.onClick.AddListener(ConfirmFavoriteAnswer);
+            actionButton.interactable = false;
+            actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Select a Favorite Answer");
         }
 
         //========================================================================

@@ -430,7 +430,6 @@ public class GameManager : NetworkBehaviour
         }
     }
     //========================================================================
-    public int GetPlayerReaderIndex() => PlayerManager.singleton.GetPlayerIndex(m_presentationSheetIndex, -1);
     public int GetPresentingSheetIndex() => m_presentationSheetIndex;
     public bool IsLastPresentingSheet() => m_presentationSheetIndex == answerSheets.Count - 1;
     public string GetPresentingTargetPlayerName() => PlayerManager.singleton.GetPlayerName(m_presentationSheetIndex).ToString();
