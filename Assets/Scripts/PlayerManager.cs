@@ -75,7 +75,16 @@ public class PlayerManager : NetworkBehaviour
     }
 
     //========================================================================
-    public FixedString32Bytes GetPlayerName(int playerIndex) => allPlayers[playerIndex].playerName;
+    public FixedString32Bytes GetPlayerName(int playerIndex)
+    {
+        if (playerIndex < 0 || playerIndex >= playerCount)
+        {
+            Debug.LogError("player index out of range " + playerIndex);
+            return null;
+        }
+
+        return allPlayers[playerIndex].playerName;
+    }
     public int GetPlayerIndex(int playerIndex, int increment)
     {
         if (playerIndex + increment < 0) //below valid range

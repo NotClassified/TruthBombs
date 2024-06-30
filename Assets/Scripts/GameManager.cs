@@ -10,6 +10,9 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static GameManager singleton;
 
+    private bool m_serverLock;
+    private int m_serverLockResponseCount;
+
     //========================================================================
     public static event System.Action QuestionCardsUpdated;
     public List<int> currentQuestionCards = new();
@@ -24,25 +27,27 @@ public class GameManager : NetworkBehaviour
     };
 
     //========================================================================
+    public static event System.Action StartAnswering;
     public static event System.Action<AnswerSheet> NewPendingAnswerSheet;
     public static event System.Action NoMorePendingAnswerSheets;
     public List<AnswerSheet> answerSheets = new();
 
     //========================================================================
     public static event System.Action StartPresentation;
-    public static event System.Action PresentedNextSheet;
+    public static event System.Action PresentNextSheet;
     public static event System.Action PresentationFinished;
-
-    public static event System.Action<int /*sheetIndex*/, int /*answerIndex*/> RevealAnswer;
-    public static event System.Action LastSheetAnswerRevealed;
-
-    public static event System.Action GuessConfirmed;
-
 
     private int m_firstPresentedSheet;
     private int m_presentationSheetIndex;
     private int m_presentationAnswerIndex;
 
+    //========================================================================
+    public static event System.Action<int /*sheetIndex*/, int /*answerIndex*/> RevealAnswer;
+    public static event System.Action LastSheetAnswerRevealed;
+
+    public static event System.Action FavoriteAnswerConfirmed;
+
+    public static event System.Action GuessConfirmed;
     public List<int> playerScores = new();
 
 
@@ -55,6 +60,42 @@ public class GameManager : NetworkBehaviour
     public void SubscribeEventsForServer()
     {
         PlayerManager.PlayerAdded += AddQuestionCard;
+        PlayerManager.PlayerAdded += CheckServerLockResponses;
+    }
+
+    //========================================================================
+    /// <summary>
+    /// <para>Implemented on functions that multiple clients can call on the server. 
+    /// Prevents multiple calls to a server call.</para> 
+    /// <para>Have the recievers call "RespondToServerLock" on the server for unlocking.</para>
+    /// </summary>
+    /// <param name="lockServer"></param>
+    /// <returns>the previous lock state</returns>
+    bool LockServer()
+    {
+        bool previousState = m_serverLock;
+        m_serverLock = true;
+        return previousState;
+    }
+    /// <summary>
+    /// Responds to the server that a server locked function has finished execution.
+    /// </summary>
+    [Rpc(SendTo.Server)]
+    void RespondToServerLock_ServerRpc()
+    {
+        m_serverLockResponseCount++;
+        CheckServerLockResponses();
+    }
+    /// <summary>
+    /// Checks if all players have responded yet. If so, it will unlock.
+    /// </summary>
+    void CheckServerLockResponses()
+    {
+        if (m_serverLockResponseCount >= PlayerManager.singleton.playerCount)
+        {
+            m_serverLock = false;
+            m_serverLockResponseCount = 0;
+        }
     }
 
     //========================================================================
@@ -159,7 +200,7 @@ public class GameManager : NetworkBehaviour
         {
             answerSheets.Add(new AnswerSheet(currentQuestionCards.Count, i));
         }
-        UIManager.singleton.ChangeUIState<UIState.AnswerSheet>();
+        StartAnswering?.Invoke();
 
         //have this player take the answer sheet of the player before
         int firstAnswerSheetIndex = Player.owningPlayer.playerIndex - 1;
@@ -316,6 +357,7 @@ public class GameManager : NetworkBehaviour
 
         StartPresentation?.Invoke();
     }
+    //========================================================================
     [Rpc(SendTo.Everyone)]
     public void RevealAnswer_Rpc()
     {
@@ -334,10 +376,15 @@ public class GameManager : NetworkBehaviour
     {
         answerSheets[m_presentationSheetIndex].favoriteAnswerIndex = favoritedAnswerIndex;
         playerScores[answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex()]++;
+
+        FavoriteAnswerConfirmed?.Invoke();
     }
+    //========================================================================
     [Rpc(SendTo.Everyone)]
     public void ConfirmPlayerGuess_Rpc(int playerGuess)
     {
+        answerSheets[m_presentationSheetIndex].guessedPlayerIndex = playerGuess;
+
         //add points to targeted player (guesser) if they guessed correctly
         if (playerGuess == answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex())
         {
@@ -346,9 +393,20 @@ public class GameManager : NetworkBehaviour
 
         GuessConfirmed?.Invoke();
     }
-    [Rpc(SendTo.Everyone)]
-    public void ConfirmScoreBoard_Rpc()
+    //========================================================================
+    [Rpc(SendTo.Server)]
+    public void ConfirmScoreBoard_ServerRpc()
     {
+        if (!LockServer())
+            return;
+
+        ConfirmScoreBoard_Rpc();
+    }
+    [Rpc(SendTo.Everyone)]
+    void ConfirmScoreBoard_Rpc()
+    {
+        RespondToServerLock_ServerRpc();
+
         //present the next sheet
         m_presentationSheetIndex++;
         if (m_presentationSheetIndex >= answerSheets.Count)
@@ -356,21 +414,21 @@ public class GameManager : NetworkBehaviour
 
         if (m_presentationSheetIndex != m_firstPresentedSheet) //the next sheet is a new sheet?
         {
-            PresentedNextSheet?.Invoke();
+            PresentNextSheet?.Invoke();
         }
         else //all sheets have been presented
         {
             PresentationFinished?.Invoke();
         }
     }
-    public int GetPlayerReaderIndex()
-    {
-        return PlayerManager.singleton.GetPlayerIndex(m_presentationSheetIndex, -1);
-    }
-    public int GetPresentingSheetIndex()
-    {
-        return m_presentationSheetIndex;
-    }
+    //========================================================================
+    public int GetPlayerReaderIndex() => PlayerManager.singleton.GetPlayerIndex(m_presentationSheetIndex, -1);
+    public int GetPresentingSheetIndex() => m_presentationSheetIndex;
+    public bool IsLastPresentingSheet() => m_presentationSheetIndex == answerSheets.Count - 1;
+    public string GetPresentingTargetPlayerName() => PlayerManager.singleton.GetPlayerName(m_presentationSheetIndex).ToString();
+    public string GetGuessedPlayerName() => PlayerManager.singleton.GetPlayerName(answerSheets[m_presentationSheetIndex].guessedPlayerIndex).ToString();
+    public string GetFavoritedPlayerName() => PlayerManager.singleton.GetPlayerName(answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex()).ToString();
+    public bool IsGuessCorrect() => answerSheets[m_presentationSheetIndex].IsGuessCorrect();
 
     //========================================================================
 }
@@ -386,7 +444,8 @@ public class AnswerSheet
     }
 
     public int targetPlayerIndex;
-    public int favoriteAnswerIndex;
+    public int favoriteAnswerIndex = -1;
+    public int guessedPlayerIndex = -1;
     public List<CardAnswer> cardAnswers = new();
 
     public AnswerSheet(int cardCount, int targetPlayerIndex)
@@ -399,4 +458,5 @@ public class AnswerSheet
     }
 
     public int GetFavoritedPlayerIndex() => cardAnswers[favoriteAnswerIndex].answeringPlayerIndex;
+    public bool IsGuessCorrect() => guessedPlayerIndex == GetFavoritedPlayerIndex();
 }

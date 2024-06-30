@@ -11,14 +11,17 @@ public class UIManager : MonoBehaviour
     public Color unselectedUIColor;
     public Color unavailableUIColor;
 
-    StateBase currentState;
+    StateBase m_currentState;
 
     private void Awake()
     {
         singleton = this;
 
-        GameManager.StartPresentation += ChangeUIState<Presentation>;
+        EnterPlayerName.NameConfirmed += ChangeUIState<SetupQuestionCards>;
         GameManager.PresentationFinished += ChangeUIState<SetupQuestionCards>;
+        GameManager.StartAnswering += ChangeUIState<UIState.AnswerSheet>;
+        GameManager.NoMorePendingAnswerSheets += ChangeUIState<WaitForAnswers>;
+        GameManager.StartPresentation += ChangeUIState<Presentation>;
     }
     private void Start()
     {
@@ -27,15 +30,15 @@ public class UIManager : MonoBehaviour
             child.gameObject.SetActive(false);
         }
 
-        singleton.ChangeUIState<EnterPlayerName>();
+        ChangeUIState<EnterPlayerName>();
     }
 
     public void ChangeUIState<NewState>() where NewState : StateBase
     {
-        currentState?.OnExit();
-        currentState = transform.GetComponentInChildren<NewState>(true);
-        currentState?.OnEnter();
+        m_currentState?.OnExit();
+        m_currentState = transform.GetComponentInChildren<NewState>(true);
+        m_currentState?.OnEnter();
     }
 
-    public bool IsCurrentState<State>() => currentState.GetType() == typeof(State);
+    public bool IsCurrentState<State>() => m_currentState.GetType() == typeof(State);
 }

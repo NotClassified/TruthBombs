@@ -38,7 +38,6 @@ namespace UIState
             base.OnEnter();
 
             GameManager.NewPendingAnswerSheet += AddAnswerSheet;
-            GameManager.NoMorePendingAnswerSheets += NoMorePendingAnswerSheets;
 
             //set question cards
             {
@@ -71,7 +70,6 @@ namespace UIState
             base.OnExit();
 
             GameManager.NewPendingAnswerSheet -= AddAnswerSheet;
-            GameManager.NoMorePendingAnswerSheets -= NoMorePendingAnswerSheets;
 
             for (int i = 0; i < m_questionCardButtons.Count; i++)
             {
@@ -181,10 +179,6 @@ namespace UIState
             answerInput.interactable = false;
             answerInput.text = "";
             m_currentAnswerInput = "";
-        }
-        void NoMorePendingAnswerSheets()
-        {
-            UIManager.singleton.ChangeUIState<WaitForAnswers>();
         }
 
         //========================================================================

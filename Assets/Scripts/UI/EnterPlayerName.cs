@@ -10,6 +10,7 @@ namespace UIState
     public class EnterPlayerName : StateBase
     {
         public static EnterPlayerName singleton;
+        public static event System.Action NameConfirmed;
 
         string currentNameInput = "";
 
@@ -30,7 +31,7 @@ namespace UIState
         {
             PlayerManager.singleton.ChangePlayerName_Rpc(Player.owningPlayer.playerIndex, currentNameInput);
 
-            UIManager.singleton.ChangeUIState<UIState.SetupQuestionCards>();
+            NameConfirmed?.Invoke();
         }
     }
 
