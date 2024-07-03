@@ -75,10 +75,14 @@ public class GameManager : NetworkBehaviour
     {
         singleton = this;
         isWaitingForPlayerReconnection = false;
+
+        Player.Disconnected += PlayerDisconnected;
     }
+
     private void Start()
     {
         PlayerManager.singleton.PlayerAdded += AddPlayerScore;
+        PlayerHasReconnected?.Invoke();
     }
 
     public void SubscribeEventsForServer()
@@ -92,6 +96,7 @@ public class GameManager : NetworkBehaviour
         base.OnNetworkSpawn();
 
         HasSpawned?.Invoke();
+        print("HasSpawned");
     }
 
     //========================================================================
@@ -133,6 +138,12 @@ public class GameManager : NetworkBehaviour
     }
 
     //========================================================================
+    private void PlayerDisconnected(int playerIndex)
+    {
+        playerScores.RemoveAt(playerIndex);
+        currentQuestionCards.RemoveAt(currentQuestionCards.Count - 1); //remove last card
+    }
+
     [Rpc(SendTo.Everyone)]
     public void SyncPlayers_Rpc()
     {
@@ -141,7 +152,7 @@ public class GameManager : NetworkBehaviour
     }
 
     [Rpc(SendTo.Everyone)]
-    public void WaitForPlayerReconnection_ServerRpc()
+    public void WaitForPlayerReconnection_Rpc()
     {
         isWaitingForPlayerReconnection = true;
 
@@ -151,6 +162,7 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public void RequestReconnectionStatus_OwnerClient()
     {
+        print("RequestReconnectionStatus_OwnerClient");
         if (IsSpawned)
         {
             HasSpawned -= RequestReconnectionStatus_OwnerClient;
@@ -164,6 +176,7 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Server, AllowTargetOverride = true)]
     void RequestReconnectionStatus_ServerRpc(RpcParams targetRpc)
     {
+        print("RequestReconnectionStatus_ServerRpc");
         RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
         RespondReconnectionStatus_TargetRpc(isWaitingForPlayerReconnection, target);
     }
@@ -177,6 +190,7 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public void ReconnectPlayers_OwnerClient()
     {
+        print("ReconnectPlayers_OwnerClient");
         RequestPlayerReconnection_ServerRpc(RpcTarget.Owner);
     }
     [Rpc(SendTo.Server, AllowTargetOverride = true)]
@@ -193,11 +207,13 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.SpecifiedInParams)]
     void ReconnectPlayers_TargetRpc(ulong clientId, int playerIndex, FixedString32Bytes playerName, RpcParams targetRPC)
     {
+        print("ReconnectPlayers_TargetRpc");
         PlayerManager.singleton.ConnectClient(clientId, playerIndex, playerName);
     }
     [Rpc(SendTo.SpecifiedInParams)]
     void FinishedPlayerReconnection_TargetRpc(RpcParams targetRPC)
     {
+        print("FinishedPlayerReconnection_TargetRpc");
         PlayerHasReconnected?.Invoke();
     }
 
@@ -268,6 +284,7 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     void SyncCurrentQuestionCardsOnClients_Host()
     {
+        print("SyncCurrentQuestionCardsOnClients_Host");
         for (int i = 0; i < currentQuestionCards.Count; i++)
         {
             SyncSingleQuestionCard_ClientRpc(i, currentQuestionCards[i]);
@@ -277,6 +294,7 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.NotServer)]
     void SyncSingleQuestionCard_ClientRpc(int cardIndex, int card)
     {
+        print("SyncSingleQuestionCard_ClientRpc");
         if (cardIndex > currentQuestionCards.Count)
             Debug.LogError("question cards not updating in order");
 
@@ -285,6 +303,7 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.NotServer)]
     void FinishedQuestionCardSync_ClientRpc()
     {
+        print("FinishedQuestionCardSync_ClientRpc");
         QuestionCardsUpdated?.Invoke();
     }
 

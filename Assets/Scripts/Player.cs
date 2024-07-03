@@ -7,6 +7,7 @@ using Unity.Collections;
 public class Player : NetworkBehaviour
 {
     public static Player owningPlayer;
+    public static int disconnectingPlayerIndex = -1;
 
     public static event System.Action OwnerSpawned;
     /// <summary>(int disconnectedPlayerIndex)</summary>
@@ -20,6 +21,8 @@ public class Player : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+
+        disconnectingPlayerIndex = -1;
 
         if (IsOwnedByServer)
         {
@@ -62,11 +65,13 @@ public class Player : NetworkBehaviour
     {
         base.OnNetworkDespawn();
 
-        Disconnected?.Invoke(playerIndex);
+        if (owningPlayer.playerIndex != disconnectingPlayerIndex)
+            Disconnected?.Invoke(playerIndex); //don't call on the owner client that is disconnecting
     }
 
     void ReconnectionStatusResponse(bool status)
     {
+        print("ReconnectionStatusResponse");
         GameManager.RespondReconnectionStatus -= ReconnectionStatusResponse;
 
         if (status)
@@ -77,7 +82,6 @@ public class Player : NetworkBehaviour
     }
     void Initialization()
     {
-        print("Initialization");
         if (IsOwner)
         {
             owningPlayer = this;

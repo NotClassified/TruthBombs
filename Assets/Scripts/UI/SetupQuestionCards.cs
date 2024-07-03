@@ -53,28 +53,24 @@ namespace UIState
 
         void UpdateQuestionCards()
         {
-            List<FixedString128Bytes> questionCards = GameManager.singleton.GetCurrentQuestionCards();
-            for (int i = 0; i < Mathf.Max(questionCards.Count, m_questionCardObjects.Count); i++)
+            foreach (GameObject card in m_questionCardObjects)
             {
-                if (i >= questionCards.Count)
-                {
-                    Destroy(m_questionCardObjects[i]);
-                    m_questionCardObjects.RemoveAt(i);
-                    continue; //destroy the rest of the card objects
-                }
+                Destroy(card);
+            }
+            m_questionCardObjects.Clear();
 
-                if (i >= m_questionCardObjects.Count)
-                {
-                    GameObject cardObject = Instantiate(questionCardPrefab, questionCardParent);
-                    m_questionCardObjects.Add(cardObject);
+            List<FixedString128Bytes> questionCards = GameManager.singleton.GetCurrentQuestionCards();
+            for (int i = 0; i < questionCards.Count; i++)
+            {
+                GameObject cardObject = Instantiate(questionCardPrefab, questionCardParent);
+                m_questionCardObjects.Add(cardObject);
 
-                    if (Player.owningPlayer.IsOwnedByServer)
-                    {
-                        int cardIndex = i;
-                        m_questionCardObjects[i].GetComponent<Button>().onClick.AddListener(
-                            () => { GameManager.singleton.ChangeQuestionCard_Host(cardIndex); }
-                        );
-                    }
+                if (Player.owningPlayer.IsOwnedByServer)
+                {
+                    int cardIndex = i;
+                    m_questionCardObjects[i].GetComponent<Button>().onClick.AddListener(
+                        () => { GameManager.singleton.ChangeQuestionCard_Host(cardIndex); }
+                    );
                 }
                 m_questionCardObjects[i].transform.GetChild(0).GetComponent<TextMeshProUGUI>().SetText(questionCards[i].ToString());
 

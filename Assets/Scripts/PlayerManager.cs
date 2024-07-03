@@ -46,12 +46,6 @@ public class PlayerManager : MonoBehaviour
         newPlayer.GetComponent<Player>().playerIndex = playerCount;
         playerCount++;
 
-        foreach (Player player in allPlayers)
-        {
-            print("PlayerIndex: " + player.playerIndex + ", IsOwner: " + player.IsOwner 
-                + ", IsServer:" + player.IsServer + ", IsOwnedByServer:" + player.IsOwnedByServer);
-        }
-
         PlayerAdded?.Invoke();
     }
     public void ReconnectPlayer(Player reconnectPlayer)

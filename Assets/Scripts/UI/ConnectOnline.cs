@@ -36,14 +36,14 @@ namespace UIState
         public void StartHost_Button()
         {
             connectionFeedbackText.gameObject.SetActive(true);
-            connectionFeedbackText.SetText("Loading..."); 
+            connectionFeedbackText.SetText("Connecting..."); 
             Invoke(nameof(StartHost), .05f);
 
         }
         public void StartClient_Button()
         {
             connectionFeedbackText.gameObject.SetActive(true);
-            connectionFeedbackText.SetText("Loading...");
+            connectionFeedbackText.SetText("Connecting...");
             Invoke(nameof(StartClient), .05f);
         }
         void StartHost()
@@ -60,6 +60,7 @@ namespace UIState
                 return;
             connecting = true;
 
+            print("StartClient");
             FindObjectOfType<NetworkManager>().StartClient();
         }
 

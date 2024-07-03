@@ -12,9 +12,6 @@ public class UIManager : MonoBehaviour
     public static UIManager singleton;
 
     //========================================================================
-    System.Action<string> m_NameConfirmedCallback;
-
-    //========================================================================
     public Color defaultUIColor;
     public Color selectedUIColor;
     public Color unselectedUIColor;
@@ -44,18 +41,13 @@ public class UIManager : MonoBehaviour
     {
         singleton = this;
 
-        m_NameConfirmedCallback = (string name) => 
-        {
-            playerName.SetText(name);
-            ChangeUIState<SetupQuestionCards>();
-        };
-        EnterPlayerName.NameConfirmed += PlayerNameConfirmed;
-
         Player.Disconnected += PlayerDisconnected;
         Player.Reconnected += PlayerReconnected;
 
         Player.OwnerSpawned += OwnerSpawned;
 
+
+        EnterPlayerName.NameConfirmed += PlayerNameConfirmed;
         GameManager.PresentationFinished += ChangeUIState<SetupQuestionCards>;
         GameManager.StartAnswering += ChangeUIState<UIState.AnswerSheet>;
         GameManager.NoMorePendingAnswerSheets += ChangeUIState<WaitForAnswers>;
@@ -64,14 +56,15 @@ public class UIManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        EnterPlayerName.NameConfirmed -= PlayerNameConfirmed;
-
         Player.Disconnected -= PlayerDisconnected;
         Player.Reconnected -= PlayerReconnected;
 
         Player.OwnerSpawned -= OwnerSpawned;
         GameManager.WaitingForPlayerReconnection -= Client_WaitForPlayerReconnection;
+        GameManager.PlayerHasReconnected -= FinishedPlayerReconnection;
 
+
+        EnterPlayerName.NameConfirmed -= PlayerNameConfirmed;
         GameManager.PresentationFinished -= ChangeUIState<SetupQuestionCards>;
         GameManager.StartAnswering -= ChangeUIState<UIState.AnswerSheet>;
         GameManager.NoMorePendingAnswerSheets -= ChangeUIState<WaitForAnswers>;
@@ -127,6 +120,7 @@ public class UIManager : MonoBehaviour
     }
     private void FinishedPlayerReconnection()
     {
+        print("FinishedPlayerReconnection");
         GameManager.PlayerHasReconnected -= FinishedPlayerReconnection;
         ChangeUIState<SetupQuestionCards>();
     }
@@ -159,6 +153,8 @@ public class UIManager : MonoBehaviour
             return;
         restartingGame = true;
 
+        Player.disconnectingPlayerIndex = Player.owningPlayer.playerIndex;
+
         FindObjectOfType<Unity.Netcode.NetworkManager>().Shutdown();
         Destroy(FindObjectOfType<Unity.Netcode.NetworkManager>().gameObject);
 
@@ -169,9 +165,6 @@ public class UIManager : MonoBehaviour
     //========================================================================
     public void PlayerDisconnected(int playerIndex)
     {
-        if (Player.owningPlayer.playerIndex == playerIndex) //this owner is the disconnecting Player
-            return;
-
         GameManager.SyncedPlayers -= RestartGame;
         GameManager.SyncedPlayers += RestartGame;
 
@@ -199,7 +192,7 @@ public class UIManager : MonoBehaviour
         waitMessageText.gameObject.SetActive(true);
         waitMessageText.SetText("Waiting for Reconnection");
 
-        GameManager.singleton.WaitForPlayerReconnection_ServerRpc();
+        GameManager.singleton.WaitForPlayerReconnection_Rpc();
     }
     public void Client_WaitForPlayerReconnection()
     {
