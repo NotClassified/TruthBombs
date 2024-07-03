@@ -25,7 +25,7 @@ namespace UIState
             actionButton.onClick.AddListener(ProceedToNextSheet);
 
             actionButton.interactable = true;
-            if (GameManager.singleton.IsLastPresentingSheet())
+            if (GameManager.IsLastPresentingSheet())
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Proceed To Next Player");
             else
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Start Next Round");
@@ -61,9 +61,9 @@ namespace UIState
         //========================================================================
         void UpdateScoreBoard()
         {
-            string targetPlayerName = GameManager.singleton.GetPresentingTargetPlayerName();
-            string guessedPlayerName = GameManager.singleton.GetGuessedPlayerName();
-            if (GameManager.singleton.IsGuessCorrect())
+            string targetPlayerName = GameManager.GetPresentingTargetPlayerName();
+            string guessedPlayerName = GameManager.GetGuessedPlayerName();
+            if (GameManager.IsGuessCorrect())
             {
                 guessFeedbackText.SetText("Correct!\n" 
                     + targetPlayerName + " Guessed " + guessedPlayerName);
@@ -72,7 +72,7 @@ namespace UIState
             {
                 guessFeedbackText.SetText("Wrong!\n"
                     + targetPlayerName + " Guessed " + guessedPlayerName
-                    + "\n" + GameManager.singleton.GetFavoritedPlayerName() + " was the Answerer");
+                    + "\n" + GameManager.GetFavoritedPlayerName() + " was the Answerer");
             }
 
             for (int i = 0; i < m_scoreBoardItems.Count; i++)

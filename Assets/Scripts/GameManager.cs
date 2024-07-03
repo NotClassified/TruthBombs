@@ -10,11 +10,29 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static GameManager singleton;
 
+    public static event System.Action HasSpawned;
+
     private bool m_serverLock = false;
+    private int m_serverLockTargetResponseCount;
     private int m_serverLockResponseCount;
 
     //========================================================================
+    public static event System.Action WaitingForPlayerReconnection;
+    /// <summary>(bool reconnectStaus)</summary>
+    public static event System.Action<bool> RespondReconnectionStatus;
+    /// <summary>(int reconnectedPlayerIndex)</summary>
+    public static event System.Action PlayerHasReconnected;
+    public static event System.Action SyncedPlayers;
+
+    public bool hasConnected;
+    public bool isWaitingForPlayerReconnection;
+
+    //========================================================================
+    public static event System.Action PlayerNameConfirmed;
+
+    //========================================================================
     public static event System.Action QuestionCardsUpdated;
+
     public List<int> currentQuestionCards = new();
     public FixedString128Bytes[] possibleQuestionCards = {
         "one",
@@ -48,6 +66,7 @@ public class GameManager : NetworkBehaviour
     public static event System.Action FavoriteAnswerConfirmed;
 
     public static event System.Action GuessConfirmed;
+    public static event System.Action<int> GuesserSelectedPlayer;
     public List<int> playerScores = new();
 
 
@@ -55,14 +74,24 @@ public class GameManager : NetworkBehaviour
     private void Awake()
     {
         singleton = this;
-
-        PlayerManager.PlayerAdded += AddPlayerScore;
+        isWaitingForPlayerReconnection = false;
+    }
+    private void Start()
+    {
+        PlayerManager.singleton.PlayerAdded += AddPlayerScore;
     }
 
     public void SubscribeEventsForServer()
     {
-        PlayerManager.PlayerAdded += AddQuestionCard;
-        PlayerManager.PlayerAdded += CheckServerLockResponses;
+        PlayerManager.singleton.PlayerAdded += AddQuestionCard;
+        PlayerManager.singleton.PlayerAdded += CheckServerLockResponses;
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+
+        HasSpawned?.Invoke();
     }
 
     //========================================================================
@@ -73,8 +102,10 @@ public class GameManager : NetworkBehaviour
     /// </summary>
     /// <param name="lockServer"></param>
     /// <returns>the previous lock state</returns>
-    bool LockServer()
+    bool LockServer(int targetResponses)
     {
+        m_serverLockTargetResponseCount = targetResponses;
+
         bool previousState = m_serverLock;
         m_serverLock = true;
         return previousState;
@@ -93,11 +124,104 @@ public class GameManager : NetworkBehaviour
     /// </summary>
     void CheckServerLockResponses()
     {
-        if (m_serverLockResponseCount >= PlayerManager.singleton.playerCount)
+        if (m_serverLockResponseCount >= m_serverLockTargetResponseCount)
         {
             m_serverLock = false;
             m_serverLockResponseCount = 0;
+            m_serverLockTargetResponseCount = 0;
         }
+    }
+
+    //========================================================================
+    [Rpc(SendTo.Everyone)]
+    public void SyncPlayers_Rpc()
+    {
+        PlayerManager.singleton.ReinitializePlayers();
+        SyncedPlayers?.Invoke();
+    }
+
+    [Rpc(SendTo.Everyone)]
+    public void WaitForPlayerReconnection_ServerRpc()
+    {
+        isWaitingForPlayerReconnection = true;
+
+        WaitingForPlayerReconnection?.Invoke();
+    }
+
+    //========================================================================
+    public void RequestReconnectionStatus_OwnerClient()
+    {
+        if (IsSpawned)
+        {
+            HasSpawned -= RequestReconnectionStatus_OwnerClient;
+            RequestReconnectionStatus_ServerRpc(RpcTarget.Owner);
+        }
+        else
+        {
+            HasSpawned += RequestReconnectionStatus_OwnerClient;
+        }
+    }
+    [Rpc(SendTo.Server, AllowTargetOverride = true)]
+    void RequestReconnectionStatus_ServerRpc(RpcParams targetRpc)
+    {
+        RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
+        RespondReconnectionStatus_TargetRpc(isWaitingForPlayerReconnection, target);
+    }
+    [Rpc(SendTo.SpecifiedInParams)]
+    void RespondReconnectionStatus_TargetRpc(bool reconnectStatus, RpcParams targetRPC)
+    {
+        print("SyncReconnectionStatus_TargetRpc");
+        RespondReconnectionStatus?.Invoke(reconnectStatus);
+    }
+
+    //========================================================================
+    public void ReconnectPlayers_OwnerClient()
+    {
+        RequestPlayerReconnection_ServerRpc(RpcTarget.Owner);
+    }
+    [Rpc(SendTo.Server, AllowTargetOverride = true)]
+    void RequestPlayerReconnection_ServerRpc(RpcParams targetRpc)
+    {
+        RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
+
+        foreach (Player player in PlayerManager.singleton.allPlayers)
+        {
+            ReconnectPlayers_TargetRpc(player.OwnerClientId, player.playerIndex, player.playerName, target);
+        }
+        FinishedPlayerReconnection_TargetRpc(target);
+    }
+    [Rpc(SendTo.SpecifiedInParams)]
+    void ReconnectPlayers_TargetRpc(ulong clientId, int playerIndex, FixedString32Bytes playerName, RpcParams targetRPC)
+    {
+        PlayerManager.singleton.ConnectClient(clientId, playerIndex, playerName);
+    }
+    [Rpc(SendTo.SpecifiedInParams)]
+    void FinishedPlayerReconnection_TargetRpc(RpcParams targetRPC)
+    {
+        PlayerHasReconnected?.Invoke();
+    }
+
+    //========================================================================
+    [Rpc(SendTo.Server)]
+    public void ChangePlayerName_ServerRpc(int playerIndex, FixedString32Bytes newName)
+    {
+        PlayerManager.singleton.allPlayers[playerIndex].playerName = newName;
+        SyncAllPlayerNames_ServerRpc();
+    }
+
+    [Rpc(SendTo.Server)]
+    void SyncAllPlayerNames_ServerRpc()
+    {
+        for (int i = 0; i < PlayerManager.singleton.allPlayers.Count; i++)
+        {
+            SyncPlayerNames_ClientRpc(i, PlayerManager.singleton.allPlayers[i].playerName);
+        }
+    }
+    [Rpc(SendTo.NotServer)]
+    void SyncPlayerNames_ClientRpc(int playerIndex, FixedString32Bytes playerName)
+    {
+        PlayerManager.singleton.allPlayers[playerIndex].playerName = playerName;
+        PlayerNameConfirmed?.Invoke();
     }
 
     //========================================================================
@@ -165,7 +289,7 @@ public class GameManager : NetworkBehaviour
     }
 
     //========================================================================
-    public void SyncCurrentQuestionCards_TargetClient()
+    public void SyncCurrentQuestionCards_OwnerClient()
     {
         SyncCurrentQuestionCards_TargetRpc(RpcTarget.Owner);
     }
@@ -397,6 +521,11 @@ public class GameManager : NetworkBehaviour
 
         GuessConfirmed?.Invoke();
     }
+    [Rpc(SendTo.Everyone)]
+    public void GuesserSelectPlayer_Rpc(int playerIndex)
+    {
+        GuesserSelectedPlayer?.Invoke(playerIndex);
+    }
     //========================================================================
     void AddPlayerScore()
     {
@@ -405,7 +534,7 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Server)]
     public void ConfirmScoreBoard_ServerRpc()
     {
-        if (LockServer())
+        if (LockServer(PlayerManager.singleton.playerCount))
             return;
 
         ConfirmScoreBoard_Rpc();
@@ -430,12 +559,13 @@ public class GameManager : NetworkBehaviour
         }
     }
     //========================================================================
-    public int GetPresentingSheetIndex() => m_presentationSheetIndex;
-    public bool IsLastPresentingSheet() => m_presentationSheetIndex == answerSheets.Count - 1;
-    public string GetPresentingTargetPlayerName() => PlayerManager.singleton.GetPlayerName(m_presentationSheetIndex).ToString();
-    public string GetGuessedPlayerName() => PlayerManager.singleton.GetPlayerName(answerSheets[m_presentationSheetIndex].guessedPlayerIndex).ToString();
-    public string GetFavoritedPlayerName() => PlayerManager.singleton.GetPlayerName(answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex()).ToString();
-    public bool IsGuessCorrect() => answerSheets[m_presentationSheetIndex].IsGuessCorrect();
+    /// <returns>The presenting sheet which is also the presenting target player</returns>
+    public static int GetPresentingSheetIndex() => singleton.m_presentationSheetIndex;
+    public static bool IsLastPresentingSheet() => singleton.m_presentationSheetIndex == singleton.answerSheets.Count - 1;
+    public static string GetPresentingTargetPlayerName() => PlayerManager.singleton.GetPlayerName(singleton.m_presentationSheetIndex).ToString();
+    public static string GetGuessedPlayerName() => PlayerManager.singleton.GetPlayerName(singleton.answerSheets[singleton.m_presentationSheetIndex].guessedPlayerIndex).ToString();
+    public static string GetFavoritedPlayerName() => PlayerManager.singleton.GetPlayerName(singleton.answerSheets[singleton.m_presentationSheetIndex].GetFavoritedPlayerIndex()).ToString();
+    public static bool IsGuessCorrect() => singleton.answerSheets[singleton.m_presentationSheetIndex].IsGuessCorrect();
 
     //========================================================================
 }

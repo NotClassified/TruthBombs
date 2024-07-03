@@ -24,18 +24,18 @@ namespace UIState
         {
             base.OnEnter();
 
-            startGameButton.gameObject.SetActive(Player.owningPlayer.IsServer);
+            startGameButton.gameObject.SetActive(Player.owningPlayer.IsOwnedByServer);
 
             GameManager.QuestionCardsUpdated += UpdateQuestionCards;
 
-            if (Player.owningPlayer.IsServer)
+            if (Player.owningPlayer.IsOwnedByServer)
             {
                 startGameButton.onClick.AddListener(GameManager.singleton.StartAnswering_Rpc);
                 UpdateQuestionCards(); //should have the latest version of cards
             }
             else
             {
-                GameManager.singleton.SyncCurrentQuestionCards_TargetClient();
+                GameManager.singleton.SyncCurrentQuestionCards_OwnerClient();
             }
         }
 
@@ -45,7 +45,7 @@ namespace UIState
 
             GameManager.QuestionCardsUpdated -= UpdateQuestionCards;
 
-            if (Player.owningPlayer.IsServer)
+            if (Player.owningPlayer.IsOwnedByServer)
             {
                 startGameButton.onClick.RemoveListener(GameManager.singleton.StartAnswering_Rpc);
             }
@@ -68,7 +68,7 @@ namespace UIState
                     GameObject cardObject = Instantiate(questionCardPrefab, questionCardParent);
                     m_questionCardObjects.Add(cardObject);
 
-                    if (Player.owningPlayer.IsServer)
+                    if (Player.owningPlayer.IsOwnedByServer)
                     {
                         int cardIndex = i;
                         m_questionCardObjects[i].GetComponent<Button>().onClick.AddListener(
@@ -79,7 +79,7 @@ namespace UIState
                 m_questionCardObjects[i].transform.GetChild(0).GetComponent<TextMeshProUGUI>().SetText(questionCards[i].ToString());
 
                 Button cardButton = m_questionCardObjects[i].GetComponent<Button>();
-                cardButton.interactable = Player.owningPlayer.IsServer;
+                cardButton.interactable = Player.owningPlayer.IsOwnedByServer;
             }
         }
     }

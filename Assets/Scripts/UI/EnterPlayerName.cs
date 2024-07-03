@@ -11,12 +11,19 @@ namespace UIState
     {
         public static EnterPlayerName singleton;
         public static event System.Action<string> NameConfirmed;
+        bool confirmingName;
 
         string currentNameInput = "";
 
         private void Awake()
         {
             singleton = this;
+        }
+
+        public override void OnEnter()
+        {
+            base.OnEnter();
+            confirmingName = false;
         }
 
         public void NewTextInput(string newText)
@@ -29,9 +36,12 @@ namespace UIState
 
         public void ConfirmName()
         {
-            PlayerManager.singleton.ChangePlayerName_Rpc(Player.owningPlayer.playerIndex, currentNameInput);
+            if (confirmingName)
+                return;
+            confirmingName = true;
 
             NameConfirmed?.Invoke(currentNameInput);
+            GameManager.singleton.ChangePlayerName_ServerRpc(Player.owningPlayer.playerIndex, currentNameInput);
         }
     }
 

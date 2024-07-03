@@ -30,7 +30,7 @@ namespace UIState
 
             m_selectedCardIndex = -1;
 
-            if (GameManager.singleton.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
+            if (GameManager.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
             {
                 GameManager.LastSheetAnswerRevealed += AllAnswersRevealed;
 
@@ -44,7 +44,7 @@ namespace UIState
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Presenting...");
             }
 
-            targetPlayerNameText.SetText("Answers for: " + GameManager.singleton.GetPresentingTargetPlayerName());
+            targetPlayerNameText.SetText("Answers for: " + GameManager.GetPresentingTargetPlayerName());
 
             //set cards
             {
@@ -72,6 +72,7 @@ namespace UIState
         {
             base.OnExit();
 
+            GameManager.RevealAnswer -= RevealAnswer;
             GameManager.LastSheetAnswerRevealed -= AllAnswersRevealed;
             actionButton.onClick.RemoveAllListeners();
         }
@@ -123,6 +124,7 @@ namespace UIState
                 SetCardColor(m_questionAnswerCards[i], UIManager.singleton.unselectedUIColor);
             }
 
+            actionButton.onClick.RemoveListener(RequestAnswerReveal);
             actionButton.onClick.AddListener(ConfirmFavoriteAnswer);
             actionButton.interactable = false;
             actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Select a Favorite Answer");

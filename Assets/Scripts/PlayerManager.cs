@@ -4,22 +4,31 @@ using UnityEngine;
 using Unity.Netcode;
 using Unity.Collections;
 
-public class PlayerManager : NetworkBehaviour
+public class PlayerManager : MonoBehaviour
 {
     //========================================================================
-    public static event System.Action PlayerAdded;
+    public event System.Action PlayerAdded;
 
     public static PlayerManager singleton;
 
     //========================================================================
-    public int playerCount = 0;
-    public List<GameObject> allPlayerObjects = new();
+    public int playerCount = 0; 
     public List<Player> allPlayers = new();
+
+    int m_disconnectedPlayerIndex = -1;
+    FixedString32Bytes m_disconnectedPlayerName;
 
     //========================================================================
     private void Awake()
     {
         singleton = this;
+        Player.Disconnected += DiconnectPlayer;
+        Player.Reconnected += ReconnectPlayer;
+    }
+    private void OnDestroy()
+    {
+        Player.Disconnected -= DiconnectPlayer;
+        Player.Reconnected -= ReconnectPlayer;
     }
 
     //========================================================================
@@ -28,19 +37,73 @@ public class PlayerManager : NetworkBehaviour
     /// </summary>
     /// <param name="newPlayer"></param>
     /// <returns>the new player index</returns>
-    public void AddPlayer(GameObject newPlayer)
+    public void AddPlayer(Player newPlayer)
     {
-        newPlayer.name = "Player" + allPlayers.Count.ToString();
+        newPlayer.gameObject.name = "Player" + allPlayers.Count.ToString();
 
-        allPlayerObjects.Add(newPlayer);
         allPlayers.Add(newPlayer.GetComponent<Player>());
 
         newPlayer.GetComponent<Player>().playerIndex = playerCount;
         playerCount++;
 
+        foreach (Player player in allPlayers)
+        {
+            print("PlayerIndex: " + player.playerIndex + ", IsOwner: " + player.IsOwner 
+                + ", IsServer:" + player.IsServer + ", IsOwnedByServer:" + player.IsOwnedByServer);
+        }
+
         PlayerAdded?.Invoke();
     }
+    public void ReconnectPlayer(Player reconnectPlayer)
+    {
+        if (m_disconnectedPlayerIndex == -1)
+        {
+            Debug.LogError("There is no player to reconnect");
+            return;
+        }
 
+        allPlayers[m_disconnectedPlayerIndex] = reconnectPlayer;
+        reconnectPlayer.gameObject.name = "Player" + m_disconnectedPlayerIndex;
+        reconnectPlayer.playerIndex = m_disconnectedPlayerIndex;
+        reconnectPlayer.playerName = m_disconnectedPlayerName;
+
+        m_disconnectedPlayerIndex = -1;
+    }
+    public void ConnectClient(ulong clientId, int playerIndex, FixedString32Bytes playerName)
+    {
+        foreach (Player player in allPlayers)
+        {
+            if (player.OwnerClientId == clientId)
+            {
+                player.gameObject.name = "Player" + playerIndex;
+                player.playerIndex = playerIndex;
+                player.playerName = playerName;
+            }
+        }
+    }
+
+    //========================================================================
+    void DiconnectPlayer(int disconnectedPlayerIndex)
+    {
+        m_disconnectedPlayerIndex = disconnectedPlayerIndex;
+        m_disconnectedPlayerName = allPlayers[disconnectedPlayerIndex].playerName;
+    }
+    public void ReinitializePlayers()
+    {
+        //remove null references
+        for (int i = 0; i < allPlayers.Count; i++)
+        {
+            if (allPlayers[i] == null)
+                allPlayers.RemoveAt(i--);
+        }
+
+        for (int i = 0; i < allPlayers.Count; i++)
+        {
+            allPlayers[i].playerIndex = i;
+        }
+    }
+
+    //========================================================================
     public RpcParams GetPlayerRpcParams(int playerIndex)
     {
         if (playerIndex < 0 || playerIndex >= playerCount)
@@ -49,29 +112,7 @@ public class PlayerManager : NetworkBehaviour
             return null;
         }
 
-        return RpcTarget.Single(allPlayers[playerIndex].OwnerClientId, RpcTargetUse.Temp);
-    }
-
-    //========================================================================
-    [Rpc(SendTo.Server)]
-    public void ChangePlayerName_Rpc(int playerIndex, FixedString32Bytes newName)
-    {
-        allPlayers[playerIndex].playerName = newName;
-        SyncPlayerNames_ServerRpc();
-    }
-
-    [Rpc(SendTo.Server)]
-    void SyncPlayerNames_ServerRpc()
-    {
-        for (int i = 0; i < allPlayers.Count; i++)
-        {
-            SyncPlayerNames_ClientRpc(i, allPlayers[i].playerName);
-        }
-    }
-    [Rpc(SendTo.NotServer)]
-    void SyncPlayerNames_ClientRpc(int playerIndex, FixedString32Bytes playerName)
-    {
-        allPlayers[playerIndex].playerName = playerName;
+        return Player.owningPlayer.RpcTarget.Single(allPlayers[playerIndex].OwnerClientId, RpcTargetUse.Temp);
     }
 
     //========================================================================
@@ -94,6 +135,16 @@ public class PlayerManager : NetworkBehaviour
             return 0;
 
         return playerIndex + increment;
+    }
+    public FixedString128Bytes GetHostName()
+    {
+        foreach (Player player in allPlayers)
+        {
+            if (player.IsOwnedByServer)
+                return player.playerName;
+        }
+        Debug.LogError("couldn't get host's name");
+        return "";
     }
 
     //========================================================================
