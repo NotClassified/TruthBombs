@@ -20,16 +20,8 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static event System.Action QuestionCardsUpdated;
 
+    FixedString128Bytes[] possibleQuestionCards;
     public List<int> currentQuestionCards = new();
-    public FixedString128Bytes[] possibleQuestionCards = {
-        "one",
-        "two",
-        "three",
-        "four",
-        "five",
-        "six",
-        "seven"
-    };
 
     //========================================================================
     public static event System.Action StartAnswering;

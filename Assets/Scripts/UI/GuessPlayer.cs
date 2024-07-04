@@ -27,6 +27,11 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
+        private void OnDestroy()
+        {
+            GameManager.GuesserSelectedPlayer -= SelectPlayer_NonGuesser;
+        }
+
         public override void OnEnter()
         {
             base.OnEnter();
