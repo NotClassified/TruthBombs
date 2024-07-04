@@ -45,10 +45,12 @@ public class UIManager : MonoBehaviour
 
         Player.OwnerSpawned += ChangeUIState<EnterPlayerName>;
         EnterPlayerName.NameConfirmed += PlayerNameConfirmed;
-        GameManager.PresentationFinished += ChangeUIState<SetupQuestionCards>;
         GameManager.StartAnswering += ChangeUIState<UIState.AnswerSheet>;
         GameManager.NoMorePendingAnswerSheets += ChangeUIState<WaitForAnswers>;
         GameManager.StartPresentation += ChangeUIState<Presentation>;
+        GameManager.WinOrTieScreen += ChangeUIState<WinScreen>;
+        WinScreen.StartTieBreaker += ChangeUIState<TieBreaker>;
+        WinScreen.StartNewGame += ChangeUIState<SetupQuestionCards>;
     }
 
     private void OnDestroy()
@@ -57,10 +59,12 @@ public class UIManager : MonoBehaviour
 
         Player.OwnerSpawned -= ChangeUIState<EnterPlayerName>;
         EnterPlayerName.NameConfirmed -= PlayerNameConfirmed;
-        GameManager.PresentationFinished -= ChangeUIState<SetupQuestionCards>;
         GameManager.StartAnswering -= ChangeUIState<UIState.AnswerSheet>;
         GameManager.NoMorePendingAnswerSheets -= ChangeUIState<WaitForAnswers>;
         GameManager.StartPresentation -= ChangeUIState<Presentation>;
+        GameManager.WinOrTieScreen -= ChangeUIState<WinScreen>;
+        WinScreen.StartTieBreaker -= ChangeUIState<TieBreaker>;
+        WinScreen.StartNewGame -= ChangeUIState<SetupQuestionCards>;
     }
 
     private void Start()
@@ -123,6 +127,32 @@ public class UIManager : MonoBehaviour
         Destroy(FindObjectOfType<Unity.Netcode.NetworkManager>().gameObject);
 
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+    }
+
+    //========================================================================
+    public void Editor_FocusState(StateBase newState)
+    {
+        foreach (StateBase state in GetComponentsInChildren<StateBase>(true))
+        {
+            if (state == newState)
+            {
+                state.gameObject.SetActive(true);
+            }
+            else if (state.GetType() == typeof(Presentation))
+            {
+                state.gameObject.SetActive(false);
+                foreach (StateBase pState in state.GetComponentsInChildren<StateBase>(true))
+                {
+                    if (pState == newState)
+                    {
+                        state.gameObject.SetActive(true);
+                        pState.gameObject.SetActive(true);
+                    }
+                }
+            }
+            else
+                state.gameObject.SetActive(false);
+        }
     }
 
     //========================================================================

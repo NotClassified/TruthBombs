@@ -55,22 +55,22 @@ public class PlayerManager : MonoBehaviour
     }
 
     //========================================================================
-    public FixedString32Bytes GetPlayerName(int playerIndex)
+    public static FixedString32Bytes GetPlayerName(int playerIndex)
     {
-        if (playerIndex < 0 || playerIndex >= playerCount)
+        if (playerIndex < 0 || playerIndex >= singleton.playerCount)
         {
             Debug.LogError("player index out of range " + playerIndex);
             return null;
         }
 
-        return allPlayers[playerIndex].playerName;
+        return singleton.allPlayers[playerIndex].playerName;
     }
-    public int GetPlayerIndex(int playerIndex, int increment)
+    public static int GetPlayerIndex(int playerIndex, int increment)
     {
         if (playerIndex + increment < 0) //below valid range
-            return playerCount - 1; //last player index
+            return singleton.playerCount - 1; //last player index
 
-        if (playerIndex + increment >= playerCount) //above valid range
+        if (playerIndex + increment >= singleton.playerCount) //above valid range
             return 0;
 
         return playerIndex + increment;

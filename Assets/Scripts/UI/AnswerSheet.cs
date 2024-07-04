@@ -112,16 +112,16 @@ namespace UIState
                 TextMeshProUGUI cardText = m_questionCardButtons[i].gameObject.GetComponentInChildren<TextMeshProUGUI>();
                 if (cardText.text.Contains("<leftPlayer>"))
                 {
-                    int leftPlayerIndex = PlayerManager.singleton.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, 1);
-                    string tokenValue = PlayerManager.singleton.GetPlayerName(leftPlayerIndex).ToString();
+                    int leftPlayerIndex = PlayerManager.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, 1);
+                    string tokenValue = PlayerManager.GetPlayerName(leftPlayerIndex).ToString();
 
                     string newQuestion = cardText.text.Replace("<leftPlayer>", tokenValue);
                     cardText.text = newQuestion;
                 }
                 if (cardText.text.Contains("<rightPlayer>"))
                 {
-                    int rightPlayerIndex = PlayerManager.singleton.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, -1);
-                    string tokenValue = PlayerManager.singleton.GetPlayerName(rightPlayerIndex).ToString();
+                    int rightPlayerIndex = PlayerManager.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, -1);
+                    string tokenValue = PlayerManager.GetPlayerName(rightPlayerIndex).ToString();
 
                     string newQuestion = cardText.text.Replace("<rightPlayer>", tokenValue);
                     cardText.text = newQuestion;
@@ -129,7 +129,7 @@ namespace UIState
             }
 
             //target player's name
-            string targetName = PlayerManager.singleton.GetPlayerName(m_pendingAnswerSheets[0].targetPlayerIndex).ToString();
+            string targetName = PlayerManager.GetPlayerName(m_pendingAnswerSheets[0].targetPlayerIndex).ToString();
             targetPlayerNameText.SetText("Answer for: " + targetName);
 
             //reset various elements
@@ -213,6 +213,8 @@ namespace UIState
 
             m_currentAnswerInput = newInput;
         }
+
+        //========================================================================
     }
 
 }

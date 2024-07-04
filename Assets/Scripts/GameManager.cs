@@ -34,7 +34,6 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static event System.Action StartPresentation;
     public static event System.Action PresentNextSheet;
-    public static event System.Action PresentationFinished;
 
     private int m_firstPresentedSheet;
     private int m_presentationSheetIndex;
@@ -50,6 +49,22 @@ public class GameManager : NetworkBehaviour
     public static event System.Action<int> GuesserSelectedPlayer;
     public List<int> playerScores = new();
 
+    //========================================================================
+    public static event System.Action WinOrTieScreen;
+    public static event System.Action TieDataSynced;
+    public bool isTieDataSynced;
+
+    public int playerWinIndex = -1;
+    public TieData currentTieData;
+    public bool playersTied;
+    public bool allPlayersTied;
+
+    //========================================================================
+    public static event System.Action<int /*tieIndex*/> TieAnswerConfirmed;
+    public static event System.Action AllTieAnswersConfirmed;
+
+    int m_tieAnswerCount;
+    int m_voteCount;
 
     //========================================================================
     private void Awake()
@@ -321,8 +336,7 @@ public class GameManager : NetworkBehaviour
             return;
         }
 
-        
-        int nextAnsweringPlayerIndex = PlayerManager.singleton.GetPlayerIndex(answeringPlayerIndex, 1);
+        int nextAnsweringPlayerIndex = PlayerManager.GetPlayerIndex(answeringPlayerIndex, 1);
 
         //will the next player recieving this answer sheet NOT also be the target player
         if (nextAnsweringPlayerIndex != answerSheetIndex)
@@ -495,16 +509,164 @@ public class GameManager : NetworkBehaviour
         }
         else //all sheets have been presented
         {
-            PresentationFinished?.Invoke();
+            CalculateScores();
         }
     }
     //========================================================================
+    void CalculateScores()
+    {
+        int winIndex = 0;
+        int highestScore = playerScores[0];
+
+        List<int> playerTieIndexes = new() { 0 };
+        playersTied = false;
+        allPlayersTied = false;
+
+        for (int i = 1; i < playerScores.Count; i++)
+        {
+            if (highestScore == playerScores[i])
+            {
+                playerTieIndexes.Add(i);
+                playersTied = true;
+            }
+            else if (highestScore > playerScores[i])
+            {
+                winIndex = i;
+                highestScore = playerScores[i];
+
+                playerTieIndexes.Clear();
+                playersTied = false;
+            }
+        }
+
+        if (playersTied)
+        {
+            isTieDataSynced = false;
+            m_voteCount = 0;
+
+            //check if all players tied, if so, it will go to win screen instead of a tie breaker
+            if (playerTieIndexes.Count == PlayerManager.singleton.playerCount)
+            {
+                allPlayersTied = true;
+            }
+            else if (IsServer)
+            {
+                currentTieData = new TieData(playerTieIndexes, DataManager.singleton.GetRandomQuestion(currentQuestionCards));
+                SyncTieQuestion_ClientRpc(currentTieData.questionIndex);
+                foreach (TieData.TiePlayer tiePlayer in currentTieData.tiePlayers)
+                {
+                    SyncTiePlayer_ClientRpc(tiePlayer.playerIndex);
+                }
+                FinishedTieDataSync_Rpc();
+            }
+        }
+        else
+        {
+            playerWinIndex = winIndex;
+        }
+        WinOrTieScreen?.Invoke();
+    }
+    [Rpc(SendTo.NotServer)]
+    void SyncTieQuestion_ClientRpc(int questionIndex)
+    {
+        currentTieData.questionIndex = questionIndex;
+    }
+    [Rpc(SendTo.NotServer)]
+    void SyncTiePlayer_ClientRpc(int playerIndex)
+    {
+        currentTieData.tiePlayers.Add(new TieData.TiePlayer(playerIndex));
+    }
+    [Rpc(SendTo.Everyone)]
+    void FinishedTieDataSync_Rpc()
+    {
+        isTieDataSynced = true;
+        TieDataSynced?.Invoke();
+    }
+
+    //========================================================================
+    [Rpc(SendTo.Everyone)]
+    public void ConfirmVote_Rpc(int tieIndex)
+    {
+        currentTieData.tiePlayers[tieIndex].votes++;
+
+        m_voteCount++;
+        if (m_voteCount >= PlayerManager.singleton.playerCount - currentTieData.tiePlayers.Count)
+        {
+            CalculateVotes();
+        }
+    }
+    [Rpc(SendTo.Everyone)]
+    public void ConfirmTieAnswer_Rpc(int playerIndex, FixedString128Bytes newAnswer)
+    {
+        int tieIndex = currentTieData.GetTieIndex(playerIndex);
+        currentTieData.tiePlayers[tieIndex].answer = newAnswer;
+        TieAnswerConfirmed?.Invoke(tieIndex);
+
+        m_tieAnswerCount++;
+        if (m_tieAnswerCount >= currentTieData.tiePlayers.Count)
+        {
+            AllTieAnswersConfirmed?.Invoke();
+        }
+    }
+    void CalculateVotes()
+    {
+        int winIndex = 0;
+        int highestVote = currentTieData.tiePlayers[0].votes;
+
+        List<int> playerTieIndexes = new() { 0 };
+        playersTied = false;
+        allPlayersTied = false;
+
+        for (int i = 1; i < currentTieData.tiePlayers.Count; i++)
+        {
+            if (highestVote == currentTieData.tiePlayers[i].votes)
+            {
+                playerTieIndexes.Add(i);
+                playersTied = true;
+            }
+            else if (highestVote > currentTieData.tiePlayers[i].votes)
+            {
+                winIndex = i;
+                highestVote = currentTieData.tiePlayers[i].votes;
+
+                playerTieIndexes.Clear();
+                playersTied = false;
+            }
+        }
+
+        if (playersTied)
+        {
+            isTieDataSynced = false;
+            m_voteCount = 0;
+
+            //check if all players tied, if so, it will go to win screen instead of a tie breaker
+            if (playerTieIndexes.Count == PlayerManager.singleton.playerCount)
+            {
+                allPlayersTied = true;
+            }
+            else if (IsServer)
+            {
+                currentTieData = new TieData(playerTieIndexes, DataManager.singleton.GetRandomQuestion(currentQuestionCards));
+                SyncTieQuestion_ClientRpc(currentTieData.questionIndex);
+                foreach (TieData.TiePlayer tiePlayer in currentTieData.tiePlayers)
+                {
+                    SyncTiePlayer_ClientRpc(tiePlayer.playerIndex);
+                }
+                FinishedTieDataSync_Rpc();
+            }
+        }
+        else
+        {
+            playerWinIndex = winIndex;
+        }
+        WinOrTieScreen?.Invoke();
+    }
     /// <returns>The presenting sheet which is also the presenting target player</returns>
     public static int GetPresentingSheetIndex() => singleton.m_presentationSheetIndex;
     public static bool IsLastPresentingSheet() => singleton.m_presentationSheetIndex == singleton.answerSheets.Count - 1;
-    public static string GetPresentingTargetPlayerName() => PlayerManager.singleton.GetPlayerName(singleton.m_presentationSheetIndex).ToString();
-    public static string GetGuessedPlayerName() => PlayerManager.singleton.GetPlayerName(singleton.answerSheets[singleton.m_presentationSheetIndex].guessedPlayerIndex).ToString();
-    public static string GetFavoritedPlayerName() => PlayerManager.singleton.GetPlayerName(singleton.answerSheets[singleton.m_presentationSheetIndex].GetFavoritedPlayerIndex()).ToString();
+    public static string GetPresentingTargetPlayerName() => PlayerManager.GetPlayerName(singleton.m_presentationSheetIndex).ToString();
+    public static string GetGuessedPlayerName() => PlayerManager.GetPlayerName(singleton.answerSheets[singleton.m_presentationSheetIndex].guessedPlayerIndex).ToString();
+    public static string GetFavoritedPlayerName() => PlayerManager.GetPlayerName(singleton.answerSheets[singleton.m_presentationSheetIndex].GetFavoritedPlayerIndex()).ToString();
     public static bool IsGuessCorrect() => singleton.answerSheets[singleton.m_presentationSheetIndex].IsGuessCorrect();
 
     //========================================================================
@@ -545,4 +707,47 @@ public class AnswerSheet
 
     public int GetFavoritedPlayerIndex() => cardAnswers[favoriteAnswerIndex].answeringPlayerIndex;
     public bool IsGuessCorrect() => guessedPlayerIndex == GetFavoritedPlayerIndex();
+}
+
+[System.Serializable]
+public class TieData
+{
+    [System.Serializable]
+    public class TiePlayer
+    {
+        public int playerIndex;
+        public int votes = 0;
+        public FixedString128Bytes answer;
+
+        public TiePlayer(int index)
+        {
+            playerIndex = index;
+        }
+    }
+    public List<TiePlayer> tiePlayers = new();
+    public int questionIndex;
+
+    public TieData(List<int> playerIndexes, int question)
+    {
+        foreach (int index in playerIndexes)
+        {
+            tiePlayers.Add(new TiePlayer(index));
+        }
+        questionIndex = question;
+    }
+
+    public int GetTieIndex(int findPlayerIndex)
+    {
+        for (int i = 0; i < tiePlayers.Count; i++)
+        {
+            if (tiePlayers[i].playerIndex == findPlayerIndex)
+            {
+                return i;
+            }
+        }
+        Debug.LogError("could not find player index " + findPlayerIndex + " in TieData");
+        return 0;
+    }
+
+    public string GetPlayerName(int tieIndex) => PlayerManager.GetPlayerName(tiePlayers[tieIndex].playerIndex).ToString();
 }

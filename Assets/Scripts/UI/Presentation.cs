@@ -45,6 +45,7 @@ namespace UIState
             GameManager.FavoriteAnswerConfirmed -= ChangeUIState<GuessPlayer>;
             GameManager.GuessConfirmed -= ChangeUIState<ScoreBoard>;
 
+            m_currentState?.OnExit();
             m_currentState = null;
         }
 

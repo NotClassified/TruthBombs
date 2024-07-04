@@ -73,7 +73,7 @@ public class QuestionData
         "What are they most likely to go to jail for?",
         "Who is their secret guilty crush?",
         "If they could be anywhere right now, where would they be?",
-        "What do they wish they could say to \"<leftPlayer>?\"",
+        "What do they wish they could say to \"<leftPlayer>\"?",
         "What though goes through their mind at last once a day?",
         "What is in the 'recently deleted' section of their phone photos?",
         "If they had a signature dance move, what would it be called?",

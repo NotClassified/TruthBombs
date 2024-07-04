@@ -21,5 +21,11 @@ namespace UIState
             isCurrentState = false;
             gameObject.SetActive(false);
         }
+
+        [ContextMenu("FocusState")]
+        public void Editor_FocusState()
+        {
+            FindObjectOfType<UIManager>().Editor_FocusState(this);
+        }
     }
 }
