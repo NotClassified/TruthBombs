@@ -13,6 +13,7 @@ namespace UIState
 
         public Transform scoreBoardContent;
         public GameObject scoreBoardItemPrefab;
+        public GameObject pointBoxPrefab;
         List<Transform> m_scoreBoardItems = new();
 
         public Button actionButton;
@@ -43,6 +44,11 @@ namespace UIState
                 {
                     Transform scoreItem = Instantiate(scoreBoardItemPrefab, scoreBoardContent).transform;
                     m_scoreBoardItems.Add(scoreItem);
+
+                    for (int i = 0; i < PlayerManager.singleton.playerCount; i++)
+                    {
+                        Instantiate(pointBoxPrefab, scoreItem);
+                    }
 
                     TextMeshProUGUI questionCardText = scoreItem.GetChild(0).GetComponentInChildren<TextMeshProUGUI>();
                     questionCardText.text = player.playerName.ToString();

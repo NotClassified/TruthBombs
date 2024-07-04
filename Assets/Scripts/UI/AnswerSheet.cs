@@ -106,6 +106,28 @@ namespace UIState
                 }
             }
 
+            //replace tokens in questions
+            for (int i = 0; i < m_questionCardButtons.Count; i++)
+            {
+                TextMeshProUGUI cardText = m_questionCardButtons[i].gameObject.GetComponentInChildren<TextMeshProUGUI>();
+                if (cardText.text.Contains("<leftPlayer>"))
+                {
+                    int leftPlayerIndex = PlayerManager.singleton.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, 1);
+                    string tokenValue = PlayerManager.singleton.GetPlayerName(leftPlayerIndex).ToString();
+
+                    string newQuestion = cardText.text.Replace("<leftPlayer>", tokenValue);
+                    cardText.text = newQuestion;
+                }
+                if (cardText.text.Contains("<rightPlayer>"))
+                {
+                    int rightPlayerIndex = PlayerManager.singleton.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, -1);
+                    string tokenValue = PlayerManager.singleton.GetPlayerName(rightPlayerIndex).ToString();
+
+                    string newQuestion = cardText.text.Replace("<rightPlayer>", tokenValue);
+                    cardText.text = newQuestion;
+                }
+            }
+
             //target player's name
             string targetName = PlayerManager.singleton.GetPlayerName(m_pendingAnswerSheets[0].targetPlayerIndex).ToString();
             targetPlayerNameText.SetText("Answer for: " + targetName);

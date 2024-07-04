@@ -9,7 +9,11 @@ public class GameManager : NetworkBehaviour
 {
     //========================================================================
     public static GameManager singleton;
+    static int m_gameVersion;
 
+    event System.Action m_Spawned;
+
+    //========================================================================
     private bool m_serverLock = false;
     private int m_serverLockTargetResponseCount;
     private int m_serverLockResponseCount;
@@ -19,8 +23,6 @@ public class GameManager : NetworkBehaviour
 
     //========================================================================
     public static event System.Action QuestionCardsUpdated;
-
-    FixedString128Bytes[] possibleQuestionCards;
     public List<int> currentQuestionCards = new();
 
     //========================================================================
@@ -53,11 +55,26 @@ public class GameManager : NetworkBehaviour
     private void Awake()
     {
         singleton = this;
+
+        m_gameVersion = int.Parse(Application.version);
+        Player.OwnerSpawned += CheckVersionCompatibility;
+    }
+    public override void OnDestroy()
+    {
+        base.OnDestroy();
+
+        Player.OwnerSpawned -= CheckVersionCompatibility;
     }
 
     private void Start()
     {
         PlayerManager.singleton.PlayerAdded += AddPlayerScore;
+    }
+
+    public override void OnNetworkSpawn()
+    {
+        base.OnNetworkSpawn();
+        m_Spawned?.Invoke();
     }
 
     public void SubscribeEventsForServer()
@@ -105,6 +122,29 @@ public class GameManager : NetworkBehaviour
     }
 
     //========================================================================
+    void CheckVersionCompatibility()
+    {
+        if (!IsSpawned)
+        {
+            m_Spawned += CheckVersionCompatibility;
+            return;
+        }
+        m_Spawned -= CheckVersionCompatibility;
+
+        if (!IsServer)
+            CheckVersionCompatibility_ServerRpc(Player.owningPlayer.playerIndex, m_gameVersion);
+    }
+    [Rpc(SendTo.Server)]
+    void CheckVersionCompatibility_ServerRpc(int ownerIndex, int version)
+    {
+        if (version != m_gameVersion)
+        {
+            Debug.LogWarning("Player " + ownerIndex + " is using version " + version 
+                + " which doesn't match your version (" + m_gameVersion + ")");
+        }
+    }
+
+    //========================================================================
     [Rpc(SendTo.Server)]
     public void ChangePlayerName_ServerRpc(int playerIndex, FixedString32Bytes newName)
     {
@@ -134,7 +174,7 @@ public class GameManager : NetworkBehaviour
         if (PlayerManager.singleton.playerCount == 1)
             return; //do not create a question card for the first player
 
-        currentQuestionCards.Add(currentQuestionCards.Count);
+        currentQuestionCards.Add(DataManager.singleton.GetRandomQuestion(currentQuestionCards));
 
         QuestionCardsUpdated?.Invoke();
 
@@ -145,16 +185,13 @@ public class GameManager : NetworkBehaviour
         List<FixedString128Bytes> questionCards = new();
         foreach (int cardIndex in currentQuestionCards)
         {
-            questionCards.Add(possibleQuestionCards[cardIndex]);
+            questionCards.Add(DataManager.singleton.GetQuestion(cardIndex));
         }
         return questionCards;
     }
     public void ChangeQuestionCard_Host(int cardIndex)
     {
-        if (++currentQuestionCards[cardIndex] >= possibleQuestionCards.Length)
-        {
-            currentQuestionCards[cardIndex] = 0;
-        }
+        currentQuestionCards[cardIndex] = DataManager.singleton.GetRandomQuestion(currentQuestionCards);
 
         QuestionCardsUpdated?.Invoke();
 
