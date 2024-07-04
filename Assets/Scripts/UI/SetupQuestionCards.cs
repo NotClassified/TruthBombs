@@ -20,6 +20,11 @@ namespace UIState
         public GameObject questionCardPrefab;
         List<GameObject> m_questionCardObjects = new();
 
+        private void OnDestroy()
+        {
+            GameManager.QuestionCardsUpdated -= UpdateQuestionCards;
+        }
+
         public override void OnEnter()
         {
             base.OnEnter();

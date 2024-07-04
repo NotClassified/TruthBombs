@@ -22,6 +22,12 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
+        private void OnDestroy()
+        {
+            GameManager.RevealAnswer -= RevealAnswer;
+            GameManager.LastSheetAnswerRevealed -= AllAnswersRevealed;
+        }
+
         public override void OnEnter()
         {
             base.OnEnter();

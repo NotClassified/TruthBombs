@@ -41,12 +41,9 @@ public class UIManager : MonoBehaviour
     {
         singleton = this;
 
-        Player.Disconnected += PlayerDisconnected;
-        Player.Reconnected += PlayerReconnected;
+        Player.Disconnected += DisconnectGame;
 
-        Player.OwnerSpawned += OwnerSpawned;
-
-
+        Player.OwnerSpawned += ChangeUIState<EnterPlayerName>;
         EnterPlayerName.NameConfirmed += PlayerNameConfirmed;
         GameManager.PresentationFinished += ChangeUIState<SetupQuestionCards>;
         GameManager.StartAnswering += ChangeUIState<UIState.AnswerSheet>;
@@ -56,14 +53,9 @@ public class UIManager : MonoBehaviour
 
     private void OnDestroy()
     {
-        Player.Disconnected -= PlayerDisconnected;
-        Player.Reconnected -= PlayerReconnected;
+        Player.Disconnected -= DisconnectGame;
 
-        Player.OwnerSpawned -= OwnerSpawned;
-        GameManager.WaitingForPlayerReconnection -= Client_WaitForPlayerReconnection;
-        GameManager.PlayerHasReconnected -= FinishedPlayerReconnection;
-
-
+        Player.OwnerSpawned -= ChangeUIState<EnterPlayerName>;
         EnterPlayerName.NameConfirmed -= PlayerNameConfirmed;
         GameManager.PresentationFinished -= ChangeUIState<SetupQuestionCards>;
         GameManager.StartAnswering -= ChangeUIState<UIState.AnswerSheet>;
@@ -93,38 +85,6 @@ public class UIManager : MonoBehaviour
         ChangeUIState<ConnectOnline>();
     }
 
-    private void OwnerSpawned()
-    {
-        if (Player.owningPlayer.IsServer)
-        {
-            ChangeUIState<EnterPlayerName>();
-        }
-        else //client
-        {
-            GameManager.WaitingForPlayerReconnection += Client_WaitForPlayerReconnection;
-
-            GameManager.RespondReconnectionStatus += RespondReconnectionStatus;
-        }
-    }
-
-    //========================================================================
-    private void RespondReconnectionStatus(bool status)
-    {
-        if (status)
-        {
-            GameManager.PlayerHasReconnected += FinishedPlayerReconnection;
-        }
-        else
-            ChangeUIState<EnterPlayerName>();
-
-    }
-    private void FinishedPlayerReconnection()
-    {
-        print("FinishedPlayerReconnection");
-        GameManager.PlayerHasReconnected -= FinishedPlayerReconnection;
-        ChangeUIState<SetupQuestionCards>();
-    }
-
     //========================================================================
     public void ChangeUIState<NewState>() where NewState : StateBase
     {
@@ -149,6 +109,10 @@ public class UIManager : MonoBehaviour
     }
     public void DisconnectButton()
     {
+        DisconnectGame(Player.owningPlayer.playerIndex);
+    }
+    void DisconnectGame(int disconnectingPlayerIndex)
+    {
         if (restartingGame)
             return;
         restartingGame = true;
@@ -158,70 +122,7 @@ public class UIManager : MonoBehaviour
         FindObjectOfType<Unity.Netcode.NetworkManager>().Shutdown();
         Destroy(FindObjectOfType<Unity.Netcode.NetworkManager>().gameObject);
 
-        ReloadScene();
-    }
-    void ReloadScene() => UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
-
-    //========================================================================
-    public void PlayerDisconnected(int playerIndex)
-    {
-        GameManager.SyncedPlayers -= RestartGame;
-        GameManager.SyncedPlayers += RestartGame;
-
-        string disconnectedPlayerName = PlayerManager.singleton.GetPlayerName(playerIndex).ToString();
-        string hostName = PlayerManager.singleton.GetHostName().ToString();
-
-        playerDisconnectText.SetText(disconnectedPlayerName + " Has Disconnected");
-
-        waitMessageText.SetText("Waiting for " + hostName + "'s Response");
-        host_WaitForPlayer.GetChild(0).GetComponent<TextMeshProUGUI>().SetText("Wait for " + disconnectedPlayerName + " to Reconnect?");
-
-
-        bool isHost = Player.owningPlayer.IsOwnedByServer;
-        waitMessageText.gameObject.SetActive(!isHost);
-        host_WaitForPlayer.gameObject.SetActive(isHost);
-        host_RestartGame.SetActive(isHost);
-
-        disconnectedScreenParent.SetActive(true);
-    }
-    public void Host_WaitForPlayer()
-    {
-        host_WaitForPlayer.gameObject.SetActive(false);
-        host_RestartGame.SetActive(false);
-
-        waitMessageText.gameObject.SetActive(true);
-        waitMessageText.SetText("Waiting for Reconnection");
-
-        GameManager.singleton.WaitForPlayerReconnection_Rpc();
-    }
-    public void Client_WaitForPlayerReconnection()
-    {
-        waitMessageText.SetText("Waiting for Reconnection");
-    }
-    void PlayerReconnected(Player player)
-    {
-        disconnectedScreenParent.SetActive(false);
-    }
-    public void Host_RestartGame()
-    {
-        if (restartingGame)
-            return;
-        restartingGame = true;
-
-        waitMessageText.SetText("Restarting...");
-
-        waitMessageText.gameObject.SetActive(true);
-        host_WaitForPlayer.gameObject.SetActive(false);
-        host_RestartGame.SetActive(false);
-
-        GameManager.singleton.SyncPlayers_Rpc();
-    }
-    void RestartGame()
-    {
-        restartingGame = false;
-        ChangeUIState<SetupQuestionCards>();
-
-        disconnectedScreenParent.SetActive(false);
+        UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
     }
 
     //========================================================================

@@ -12,8 +12,6 @@ public class Player : NetworkBehaviour
     public static event System.Action OwnerSpawned;
     /// <summary>(int disconnectedPlayerIndex)</summary>
     public static event System.Action<int> Disconnected;
-    public static event System.Action<Player> Reconnected;
-    public static event System.Action Reconnecting;
 
     public int playerIndex;
     public FixedString32Bytes playerName;
@@ -22,70 +20,9 @@ public class Player : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        disconnectingPlayerIndex = -1;
-
-        if (IsOwnedByServer)
-        {
-            Initialization();
-        }
-        else if (IsServer)
-        {
-            if (GameManager.singleton.isWaitingForPlayerReconnection)
-            {
-                Reconnected?.Invoke(this);
-            }
-            else
-            {
-                Initialization();
-            }
-        }
-        else //client
-        {
-            if (GameManager.singleton.hasConnected) //owner has already connected, this a new client
-            {
-                if (GameManager.singleton.isWaitingForPlayerReconnection)
-                    Reconnected?.Invoke(this);
-                else
-                    Initialization();
-            }
-            else if (IsOwner) //owner hasn't been connected and will request reconnection status
-            {
-                Initialization();
-
-                GameManager.RespondReconnectionStatus += ReconnectionStatusResponse;
-                GameManager.singleton.RequestReconnectionStatus_OwnerClient();
-            }
-            else //other clients where the owner hasn't been connected
-            {
-                Initialization();
-            }
-        }
-    }
-    public override void OnNetworkDespawn()
-    {
-        base.OnNetworkDespawn();
-
-        if (owningPlayer.playerIndex != disconnectingPlayerIndex)
-            Disconnected?.Invoke(playerIndex); //don't call on the owner client that is disconnecting
-    }
-
-    void ReconnectionStatusResponse(bool status)
-    {
-        print("ReconnectionStatusResponse");
-        GameManager.RespondReconnectionStatus -= ReconnectionStatusResponse;
-
-        if (status)
-        {
-            Reconnecting?.Invoke();
-            GameManager.singleton.ReconnectPlayers_OwnerClient();
-        }
-    }
-    void Initialization()
-    {
         if (IsOwner)
         {
             owningPlayer = this;
-            GameManager.singleton.hasConnected = true;
 
             if (IsOwnedByServer)
                 GameManager.singleton.SubscribeEventsForServer();
@@ -94,5 +31,12 @@ public class Player : NetworkBehaviour
         }
 
         PlayerManager.singleton.AddPlayer(this);
+    }
+    public override void OnNetworkDespawn()
+    {
+        base.OnNetworkDespawn();
+
+        if (owningPlayer.playerIndex != disconnectingPlayerIndex)
+            Disconnected?.Invoke(playerIndex); //don't call on the owner client that is disconnecting
     }
 }

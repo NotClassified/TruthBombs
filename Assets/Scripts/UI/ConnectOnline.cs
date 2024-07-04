@@ -20,7 +20,6 @@ namespace UIState
             base.OnEnter();
             connectionFeedbackText.gameObject.SetActive(false);
 
-            Player.Reconnecting += Reconnecting;
             FindObjectOfType<NetworkManager>().OnTransportFailure += ConnectionFailure;
         }
 
@@ -28,7 +27,6 @@ namespace UIState
         {
             base.OnExit();
 
-            Player.Reconnecting -= Reconnecting;
             FindObjectOfType<NetworkManager>().OnTransportFailure -= ConnectionFailure;
         }
 
@@ -60,15 +58,10 @@ namespace UIState
                 return;
             connecting = true;
 
-            print("StartClient");
             FindObjectOfType<NetworkManager>().StartClient();
         }
 
         //========================================================================
-        private void Reconnecting()
-        {
-            connectionFeedbackText.SetText("Reconnecting...");
-        }
         void ConnectionFailure()
         {
             connecting = false;
@@ -76,5 +69,7 @@ namespace UIState
             connectionFeedbackText.gameObject.SetActive(true);
             connectionFeedbackText.SetText("Connection Failure");
         }
+
+        //========================================================================
     }
 }

@@ -15,6 +15,13 @@ namespace UIState
         //========================================================================
         StateBase m_currentState;
 
+        private void OnDestroy()
+        {
+            GameManager.PresentNextSheet -= ChangeUIState<AnswerReveal>;
+            GameManager.FavoriteAnswerConfirmed -= ChangeUIState<GuessPlayer>;
+            GameManager.GuessConfirmed -= ChangeUIState<ScoreBoard>;
+        }
+
         public override void OnEnter()
         {
             base.OnEnter();

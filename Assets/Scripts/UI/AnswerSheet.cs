@@ -33,6 +33,11 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
+        private void OnDestroy()
+        {
+            GameManager.NewPendingAnswerSheet -= AddAnswerSheet;
+        }
+
         public override void OnEnter()
         {
             base.OnEnter();

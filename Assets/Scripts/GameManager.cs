@@ -10,22 +10,9 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     public static GameManager singleton;
 
-    public static event System.Action HasSpawned;
-
     private bool m_serverLock = false;
     private int m_serverLockTargetResponseCount;
     private int m_serverLockResponseCount;
-
-    //========================================================================
-    public static event System.Action WaitingForPlayerReconnection;
-    /// <summary>(bool reconnectStaus)</summary>
-    public static event System.Action<bool> RespondReconnectionStatus;
-    /// <summary>(int reconnectedPlayerIndex)</summary>
-    public static event System.Action PlayerHasReconnected;
-    public static event System.Action SyncedPlayers;
-
-    public bool hasConnected;
-    public bool isWaitingForPlayerReconnection;
 
     //========================================================================
     public static event System.Action PlayerNameConfirmed;
@@ -74,29 +61,17 @@ public class GameManager : NetworkBehaviour
     private void Awake()
     {
         singleton = this;
-        isWaitingForPlayerReconnection = false;
-
-        Player.Disconnected += PlayerDisconnected;
     }
 
     private void Start()
     {
         PlayerManager.singleton.PlayerAdded += AddPlayerScore;
-        PlayerHasReconnected?.Invoke();
     }
 
     public void SubscribeEventsForServer()
     {
         PlayerManager.singleton.PlayerAdded += AddQuestionCard;
         PlayerManager.singleton.PlayerAdded += CheckServerLockResponses;
-    }
-
-    public override void OnNetworkSpawn()
-    {
-        base.OnNetworkSpawn();
-
-        HasSpawned?.Invoke();
-        print("HasSpawned");
     }
 
     //========================================================================
@@ -135,86 +110,6 @@ public class GameManager : NetworkBehaviour
             m_serverLockResponseCount = 0;
             m_serverLockTargetResponseCount = 0;
         }
-    }
-
-    //========================================================================
-    private void PlayerDisconnected(int playerIndex)
-    {
-        playerScores.RemoveAt(playerIndex);
-        currentQuestionCards.RemoveAt(currentQuestionCards.Count - 1); //remove last card
-    }
-
-    [Rpc(SendTo.Everyone)]
-    public void SyncPlayers_Rpc()
-    {
-        PlayerManager.singleton.ReinitializePlayers();
-        SyncedPlayers?.Invoke();
-    }
-
-    [Rpc(SendTo.Everyone)]
-    public void WaitForPlayerReconnection_Rpc()
-    {
-        isWaitingForPlayerReconnection = true;
-
-        WaitingForPlayerReconnection?.Invoke();
-    }
-
-    //========================================================================
-    public void RequestReconnectionStatus_OwnerClient()
-    {
-        print("RequestReconnectionStatus_OwnerClient");
-        if (IsSpawned)
-        {
-            HasSpawned -= RequestReconnectionStatus_OwnerClient;
-            RequestReconnectionStatus_ServerRpc(RpcTarget.Owner);
-        }
-        else
-        {
-            HasSpawned += RequestReconnectionStatus_OwnerClient;
-        }
-    }
-    [Rpc(SendTo.Server, AllowTargetOverride = true)]
-    void RequestReconnectionStatus_ServerRpc(RpcParams targetRpc)
-    {
-        print("RequestReconnectionStatus_ServerRpc");
-        RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
-        RespondReconnectionStatus_TargetRpc(isWaitingForPlayerReconnection, target);
-    }
-    [Rpc(SendTo.SpecifiedInParams)]
-    void RespondReconnectionStatus_TargetRpc(bool reconnectStatus, RpcParams targetRPC)
-    {
-        print("SyncReconnectionStatus_TargetRpc");
-        RespondReconnectionStatus?.Invoke(reconnectStatus);
-    }
-
-    //========================================================================
-    public void ReconnectPlayers_OwnerClient()
-    {
-        print("ReconnectPlayers_OwnerClient");
-        RequestPlayerReconnection_ServerRpc(RpcTarget.Owner);
-    }
-    [Rpc(SendTo.Server, AllowTargetOverride = true)]
-    void RequestPlayerReconnection_ServerRpc(RpcParams targetRpc)
-    {
-        RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
-
-        foreach (Player player in PlayerManager.singleton.allPlayers)
-        {
-            ReconnectPlayers_TargetRpc(player.OwnerClientId, player.playerIndex, player.playerName, target);
-        }
-        FinishedPlayerReconnection_TargetRpc(target);
-    }
-    [Rpc(SendTo.SpecifiedInParams)]
-    void ReconnectPlayers_TargetRpc(ulong clientId, int playerIndex, FixedString32Bytes playerName, RpcParams targetRPC)
-    {
-        print("ReconnectPlayers_TargetRpc");
-        PlayerManager.singleton.ConnectClient(clientId, playerIndex, playerName);
-    }
-    [Rpc(SendTo.SpecifiedInParams)]
-    void FinishedPlayerReconnection_TargetRpc(RpcParams targetRPC)
-    {
-        print("FinishedPlayerReconnection_TargetRpc");
-        PlayerHasReconnected?.Invoke();
     }
 
     //========================================================================
@@ -284,7 +179,6 @@ public class GameManager : NetworkBehaviour
     //========================================================================
     void SyncCurrentQuestionCardsOnClients_Host()
     {
-        print("SyncCurrentQuestionCardsOnClients_Host");
         for (int i = 0; i < currentQuestionCards.Count; i++)
         {
             SyncSingleQuestionCard_ClientRpc(i, currentQuestionCards[i]);
@@ -294,7 +188,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.NotServer)]
     void SyncSingleQuestionCard_ClientRpc(int cardIndex, int card)
     {
-        print("SyncSingleQuestionCard_ClientRpc");
         if (cardIndex > currentQuestionCards.Count)
             Debug.LogError("question cards not updating in order");
 
@@ -303,7 +196,6 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.NotServer)]
     void FinishedQuestionCardSync_ClientRpc()
     {
-        print("FinishedQuestionCardSync_ClientRpc");
         QuestionCardsUpdated?.Invoke();
     }
 
