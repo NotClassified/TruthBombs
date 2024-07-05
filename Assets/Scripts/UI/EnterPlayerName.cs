@@ -15,6 +15,9 @@ namespace UIState
 
         string currentNameInput = "";
 
+        public TextMeshProUGUI joinCodeText;
+
+
         private void Awake()
         {
             singleton = this;
@@ -24,6 +27,8 @@ namespace UIState
         {
             base.OnEnter();
             confirmingName = false;
+
+            joinCodeText.SetText("Join Code: " + GameManager.singleton.currentJoinCode);
         }
 
         public void NewTextInput(string newText)

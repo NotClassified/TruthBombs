@@ -15,6 +15,7 @@ namespace UIState
     public class SetupQuestionCards : StateBase
     {
         public Button startGameButton;
+        public TextMeshProUGUI joinCodeText;
 
         public Transform questionCardParent;
         public GameObject questionCardPrefab;
@@ -33,6 +34,8 @@ namespace UIState
         public override void OnEnter()
         {
             base.OnEnter();
+
+            joinCodeText.SetText("Join Code: " + GameManager.singleton.currentJoinCode);
 
             startGameButton.gameObject.SetActive(Player.owningPlayer.IsOwnedByServer);
 

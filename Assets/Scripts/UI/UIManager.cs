@@ -126,8 +126,8 @@ public class UIManager : MonoBehaviour
 
         Player.disconnectingPlayerIndex = Player.owningPlayer.playerIndex;
 
-        FindObjectOfType<Unity.Netcode.NetworkManager>().Shutdown();
-        Destroy(FindObjectOfType<Unity.Netcode.NetworkManager>().gameObject);
+        Unity.Netcode.NetworkManager.Singleton.Shutdown();
+        Destroy(Unity.Netcode.NetworkManager.Singleton.gameObject);
 
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
     }

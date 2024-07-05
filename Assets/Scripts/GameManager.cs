@@ -11,6 +11,9 @@ public class GameManager : NetworkBehaviour
     public static GameManager singleton;
     static int m_gameVersion;
 
+    public static bool signedIn;
+    public string currentJoinCode;
+
     public bool playingGame;
     System.Action m_PlayGameCallback;
     System.Action m_StopGameCallback;
