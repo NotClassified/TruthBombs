@@ -9,9 +9,6 @@ namespace UIState
     public class WinScreen : StateBase
     {
         //========================================================================
-        public static event System.Action StartNewGame;
-        public static event System.Action StartTieBreaker;
-
         public TextMeshProUGUI headerMessageText;
         public Button actionButton;
 
@@ -69,12 +66,12 @@ namespace UIState
                 if (needsTieBreaker)
                 {
                     actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Start Tie Breaker");
-                    actionButton.onClick.AddListener(() => { StartTieBreaker?.Invoke(); });
+                    actionButton.onClick.AddListener(StartTieBreaker);
                 }
                 else
                 {
                     actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Start New Game");
-                    actionButton.onClick.AddListener(() => { StartNewGame?.Invoke(); });
+                    actionButton.onClick.AddListener(StartNewGame);
                 }
             }
         }
@@ -95,6 +92,18 @@ namespace UIState
             headerMessageText.SetText(tieMessage);
 
             SetActionButton(true);
+        }
+
+        //========================================================================
+        void StartNewGame()
+        {
+            actionButton.interactable = false;
+            GameManager.singleton.StartNewGame_Rpc();
+        }
+        void StartTieBreaker()
+        {
+            actionButton.interactable = false;
+            GameManager.singleton.StartTieBreaker_Rpc();
         }
 
         //========================================================================

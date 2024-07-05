@@ -20,9 +20,14 @@ namespace UIState
         public GameObject questionCardPrefab;
         List<GameObject> m_questionCardObjects = new();
 
+        public Transform playersParent;
+        public GameObject playersPrefab;
+        List<Transform> m_playerItems = new();
+
         private void OnDestroy()
         {
             GameManager.QuestionCardsUpdated -= UpdateQuestionCards;
+            GameManager.PlayerNameConfirmed -= UpdateQuestionCards;
         }
 
         public override void OnEnter()
@@ -32,6 +37,7 @@ namespace UIState
             startGameButton.gameObject.SetActive(Player.owningPlayer.IsOwnedByServer);
 
             GameManager.QuestionCardsUpdated += UpdateQuestionCards;
+            GameManager.PlayerNameConfirmed += UpdateQuestionCards;
 
             if (Player.owningPlayer.IsOwnedByServer)
             {
@@ -49,6 +55,7 @@ namespace UIState
             base.OnExit();
 
             GameManager.QuestionCardsUpdated -= UpdateQuestionCards;
+            GameManager.PlayerNameConfirmed -= UpdateQuestionCards;
 
             if (Player.owningPlayer.IsOwnedByServer)
             {
@@ -81,6 +88,23 @@ namespace UIState
 
                 Button cardButton = m_questionCardObjects[i].GetComponent<Button>();
                 cardButton.interactable = Player.owningPlayer.IsOwnedByServer;
+            }
+
+
+
+            foreach (Transform button in m_playerItems)
+            {
+                Destroy(button.gameObject);
+            }
+            m_playerItems.Clear();
+
+            foreach (Player player in PlayerManager.singleton.allPlayers)
+            {
+                Transform selectButton = Instantiate(playersPrefab, playersParent).transform;
+                m_playerItems.Add(selectButton);
+
+                TextMeshProUGUI playerNameText = selectButton.GetComponentInChildren<TextMeshProUGUI>();
+                playerNameText.text = player.playerName.ToString();
             }
         }
     }

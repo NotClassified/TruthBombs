@@ -168,7 +168,7 @@ namespace UIState
                     continue;
                 SetPlayerColor(selectButton, UIManager.singleton.defaultUIColor);
             }
-            SetPlayerColor(m_playerSelectButtons[playerIndex], UIManager.singleton.selectedUIColor);
+            SetPlayerColor(m_playerSelectButtons[playerIndex], UIManager.singleton.unselectedUIColor);
         }
 
         void SetPlayerColor(Transform player, Color newColor)

@@ -11,7 +11,7 @@ public class Player : NetworkBehaviour
 
     public static event System.Action OwnerSpawned;
     /// <summary>(int disconnectedPlayerIndex)</summary>
-    public static event System.Action<int> Disconnected;
+    public event System.Action<int> Disconnected;
 
     public int playerIndex;
     public FixedString32Bytes playerName;
@@ -19,6 +19,9 @@ public class Player : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
+
+        if (GameManager.singleton.playingGame)
+            return;
 
         if (IsOwner)
         {

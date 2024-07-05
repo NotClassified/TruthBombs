@@ -11,6 +11,10 @@ public class GameManager : NetworkBehaviour
     public static GameManager singleton;
     static int m_gameVersion;
 
+    public bool playingGame;
+    System.Action m_PlayGameCallback;
+    System.Action m_StopGameCallback;
+
     event System.Action m_Spawned;
 
     //========================================================================
@@ -47,12 +51,17 @@ public class GameManager : NetworkBehaviour
 
     public static event System.Action GuessConfirmed;
     public static event System.Action<int> GuesserSelectedPlayer;
-    public List<int> playerScores = new();
 
     //========================================================================
     public static event System.Action WinOrTieScreen;
+    public static event System.Action StartNewGame;
+    public static event System.Action StartTieBreaker;
     public static event System.Action TieDataSynced;
+    public static event System.Action<int /*questionIndex*/> NewTieQuestion;
     public bool isTieDataSynced;
+
+    public List<int> playerScores = new();
+    public int playerScoreMax;
 
     public int playerWinIndex = -1;
     public TieData currentTieData;
@@ -73,17 +82,19 @@ public class GameManager : NetworkBehaviour
 
         m_gameVersion = int.Parse(Application.version);
         Player.OwnerSpawned += CheckVersionCompatibility;
+
+        m_PlayGameCallback = () => { playingGame = true; };
+        StartAnswering += m_PlayGameCallback;
+        m_StopGameCallback = () => { playingGame = false; };
+        StartNewGame += m_StopGameCallback;
     }
     public override void OnDestroy()
     {
         base.OnDestroy();
 
         Player.OwnerSpawned -= CheckVersionCompatibility;
-    }
-
-    private void Start()
-    {
-        PlayerManager.singleton.PlayerAdded += AddPlayerScore;
+        StartAnswering -= m_PlayGameCallback;
+        StartNewGame -= m_StopGameCallback;
     }
 
     public override void OnNetworkSpawn()
@@ -94,8 +105,8 @@ public class GameManager : NetworkBehaviour
 
     public void SubscribeEventsForServer()
     {
-        PlayerManager.singleton.PlayerAdded += AddQuestionCard;
-        PlayerManager.singleton.PlayerAdded += CheckServerLockResponses;
+        PlayerManager.singleton.PlayerAdded += (Player _) => { AddQuestionCard(); };
+        PlayerManager.singleton.PlayerAdded += (Player _) => { CheckServerLockResponses(); };
     }
 
     //========================================================================
@@ -164,6 +175,7 @@ public class GameManager : NetworkBehaviour
     public void ChangePlayerName_ServerRpc(int playerIndex, FixedString32Bytes newName)
     {
         PlayerManager.singleton.allPlayers[playerIndex].playerName = newName;
+        PlayerNameConfirmed?.Invoke();
         SyncAllPlayerNames_ServerRpc();
     }
 
@@ -172,13 +184,18 @@ public class GameManager : NetworkBehaviour
     {
         for (int i = 0; i < PlayerManager.singleton.allPlayers.Count; i++)
         {
-            SyncPlayerNames_ClientRpc(i, PlayerManager.singleton.allPlayers[i].playerName);
+            SyncPlayerName_ClientRpc(i, PlayerManager.singleton.allPlayers[i].playerName);
         }
+        FinishedPlayerNameSync_ClientRpc();
     }
     [Rpc(SendTo.NotServer)]
-    void SyncPlayerNames_ClientRpc(int playerIndex, FixedString32Bytes playerName)
+    void SyncPlayerName_ClientRpc(int playerIndex, FixedString32Bytes playerName)
     {
         PlayerManager.singleton.allPlayers[playerIndex].playerName = playerName;
+    }
+    [Rpc(SendTo.NotServer)]
+    void FinishedPlayerNameSync_ClientRpc()
+    {
         PlayerNameConfirmed?.Invoke();
     }
 
@@ -276,10 +293,13 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Everyone)]
     public void StartAnswering_Rpc()
     {
+        playerScoreMax = PlayerManager.singleton.playerCount;
+        playerScores.Clear();
         answerSheets.Clear();
-        //answer sheet for each player
+        //answer sheet and score for each player
         for (int i = 0; i < PlayerManager.singleton.playerCount; i++)
         {
+            playerScores.Add(0);
             answerSheets.Add(new AnswerSheet(currentQuestionCards.Count, i));
         }
         StartAnswering?.Invoke();
@@ -457,7 +477,10 @@ public class GameManager : NetworkBehaviour
     public void ConfirmFavoriteAnswer_Rpc(int favoritedAnswerIndex)
     {
         answerSheets[m_presentationSheetIndex].favoriteAnswerIndex = favoritedAnswerIndex;
-        playerScores[answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex()]++;
+
+        int favoritedPlayerIndex = answerSheets[m_presentationSheetIndex].GetFavoritedPlayerIndex();
+        if (playerScores[favoritedPlayerIndex] < playerScoreMax)
+            playerScores[favoritedPlayerIndex]++;
         
         FavoriteAnswerConfirmed?.Invoke();
     }
@@ -481,10 +504,6 @@ public class GameManager : NetworkBehaviour
         GuesserSelectedPlayer?.Invoke(playerIndex);
     }
     //========================================================================
-    void AddPlayerScore()
-    {
-        playerScores.Add(0);
-    }
     [Rpc(SendTo.Server)]
     public void ConfirmScoreBoard_ServerRpc()
     {
@@ -524,17 +543,18 @@ public class GameManager : NetworkBehaviour
 
         for (int i = 1; i < playerScores.Count; i++)
         {
-            if (highestScore == playerScores[i])
+            if (playerScores[i] == highestScore)
             {
                 playerTieIndexes.Add(i);
                 playersTied = true;
             }
-            else if (highestScore > playerScores[i])
+            else if (playerScores[i] > highestScore)
             {
                 winIndex = i;
                 highestScore = playerScores[i];
 
                 playerTieIndexes.Clear();
+                playerTieIndexes.Add(i);
                 playersTied = false;
             }
         }
@@ -542,6 +562,7 @@ public class GameManager : NetworkBehaviour
         if (playersTied)
         {
             isTieDataSynced = false;
+            currentTieData = new();
             m_voteCount = 0;
 
             //check if all players tied, if so, it will go to win screen instead of a tie breaker
@@ -582,6 +603,22 @@ public class GameManager : NetworkBehaviour
         isTieDataSynced = true;
         TieDataSynced?.Invoke();
     }
+    [Rpc(SendTo.Server)]
+    public void ChangeTieQuestion_ServerRpc()
+    {
+        if (LockServer(PlayerManager.singleton.playerCount))
+            return;
+
+        int newQuestionIndex = DataManager.singleton.GetRandomQuestion(currentQuestionCards);
+        SyncTieQuestion_Rpc(newQuestionIndex);
+    }
+    [Rpc(SendTo.Everyone)]
+    void SyncTieQuestion_Rpc(int newQuestionIndex)
+    {
+        RespondToServerLock_ServerRpc();
+
+        NewTieQuestion?.Invoke(newQuestionIndex);
+    }
 
     //========================================================================
     [Rpc(SendTo.Everyone)]
@@ -619,12 +656,12 @@ public class GameManager : NetworkBehaviour
 
         for (int i = 1; i < currentTieData.tiePlayers.Count; i++)
         {
-            if (highestVote == currentTieData.tiePlayers[i].votes)
+            if (currentTieData.tiePlayers[i].votes == highestVote)
             {
                 playerTieIndexes.Add(i);
                 playersTied = true;
             }
-            else if (highestVote > currentTieData.tiePlayers[i].votes)
+            else if (currentTieData.tiePlayers[i].votes > highestVote)
             {
                 winIndex = i;
                 highestVote = currentTieData.tiePlayers[i].votes;
@@ -637,6 +674,7 @@ public class GameManager : NetworkBehaviour
         if (playersTied)
         {
             isTieDataSynced = false;
+            currentTieData = new();
             m_voteCount = 0;
 
             //check if all players tied, if so, it will go to win screen instead of a tie breaker
@@ -657,10 +695,29 @@ public class GameManager : NetworkBehaviour
         }
         else
         {
-            playerWinIndex = winIndex;
+            playerWinIndex = currentTieData.tiePlayers[winIndex].playerIndex;
         }
         WinOrTieScreen?.Invoke();
     }
+    //========================================================================
+    [Rpc(SendTo.Everyone)]
+    public void StartNewGame_Rpc()
+    {
+        playerScores.Clear();
+        for (int i = 0; i < PlayerManager.singleton.playerCount; i++)
+        {
+            playerScores.Add(0);
+        }
+
+        StartNewGame?.Invoke();
+    }
+    [Rpc(SendTo.Everyone)]
+    public void StartTieBreaker_Rpc()
+    {
+        StartTieBreaker?.Invoke();
+    }
+
+    //========================================================================
     /// <returns>The presenting sheet which is also the presenting target player</returns>
     public static int GetPresentingSheetIndex() => singleton.m_presentationSheetIndex;
     public static bool IsLastPresentingSheet() => singleton.m_presentationSheetIndex == singleton.answerSheets.Count - 1;
@@ -727,6 +784,10 @@ public class TieData
     public List<TiePlayer> tiePlayers = new();
     public int questionIndex;
 
+    public TieData()
+    {
+        questionIndex = -1;
+    }
     public TieData(List<int> playerIndexes, int question)
     {
         foreach (int index in playerIndexes)

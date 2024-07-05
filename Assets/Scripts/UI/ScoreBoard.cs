@@ -27,9 +27,9 @@ namespace UIState
 
             actionButton.interactable = true;
             if (GameManager.IsLastPresentingSheet())
-                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Proceed To Next Player");
+                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("See Result");
             else
-                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Start Next Round");
+                actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Proceed To Next Player");
 
             //set score board
             {
@@ -45,7 +45,7 @@ namespace UIState
                     Transform scoreItem = Instantiate(scoreBoardItemPrefab, scoreBoardContent).transform;
                     m_scoreBoardItems.Add(scoreItem);
 
-                    for (int i = 0; i < PlayerManager.singleton.playerCount; i++)
+                    for (int i = 0; i < GameManager.singleton.playerScoreMax; i++)
                     {
                         Instantiate(pointBoxPrefab, scoreItem);
                     }
@@ -78,7 +78,7 @@ namespace UIState
             {
                 guessFeedbackText.SetText("Wrong!\n"
                     + targetPlayerName + " Guessed " + guessedPlayerName
-                    + "\n" + GameManager.GetFavoritedPlayerName() + " was the Answerer");
+                    + "\n" + GameManager.GetFavoritedPlayerName() + " was the Favorite");
             }
 
             for (int i = 0; i < m_scoreBoardItems.Count; i++)

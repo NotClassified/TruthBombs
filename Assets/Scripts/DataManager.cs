@@ -27,7 +27,7 @@ public class DataManager : MonoBehaviour
             SaveData();
         }
         ReadData();
-        Debug.Log("File Location: " + Application.persistentDataPath);
+        //Debug.Log("File Location: " + Application.persistentDataPath);
     }
 
     //========================================================================
@@ -63,12 +63,6 @@ public class DataManager : MonoBehaviour
     }
     void LoadData()
     {
-        string logMessage = "";
-        foreach (string question in m_currentData.questions)
-        {
-            logMessage += question.ToString();
-        }
-        Debug.Log(logMessage);
     }
     bool DataExists() => File.Exists(defaultQuestionsPath);
 

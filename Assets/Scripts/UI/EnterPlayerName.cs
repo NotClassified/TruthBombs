@@ -40,8 +40,8 @@ namespace UIState
                 return;
             confirmingName = true;
 
-            NameConfirmed?.Invoke(currentNameInput);
             GameManager.singleton.ChangePlayerName_ServerRpc(Player.owningPlayer.playerIndex, currentNameInput);
+            NameConfirmed?.Invoke(currentNameInput);
         }
     }
 

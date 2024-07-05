@@ -27,21 +27,12 @@ public class UIManager : MonoBehaviour
     //========================================================================
     public GameObject pauseScreen;
     bool restartingGame = false;
-
-    //========================================================================
-    public GameObject disconnectedScreenParent;
-
-    public TextMeshProUGUI playerDisconnectText;
-    public TextMeshProUGUI waitMessageText;
-    public Transform host_WaitForPlayer;
-    public GameObject host_RestartGame;
+    public Button pauseActionButton;
 
     //========================================================================
     private void Awake()
     {
         singleton = this;
-
-        Player.Disconnected += DisconnectGame;
 
         Player.OwnerSpawned += ChangeUIState<EnterPlayerName>;
         EnterPlayerName.NameConfirmed += PlayerNameConfirmed;
@@ -49,26 +40,26 @@ public class UIManager : MonoBehaviour
         GameManager.NoMorePendingAnswerSheets += ChangeUIState<WaitForAnswers>;
         GameManager.StartPresentation += ChangeUIState<Presentation>;
         GameManager.WinOrTieScreen += ChangeUIState<WinScreen>;
-        WinScreen.StartTieBreaker += ChangeUIState<TieBreaker>;
-        WinScreen.StartNewGame += ChangeUIState<SetupQuestionCards>;
+        GameManager.StartTieBreaker += ChangeUIState<TieBreaker>;
+        GameManager.StartNewGame += ChangeUIState<SetupQuestionCards>;
     }
 
     private void OnDestroy()
     {
-        Player.Disconnected -= DisconnectGame;
-
         Player.OwnerSpawned -= ChangeUIState<EnterPlayerName>;
         EnterPlayerName.NameConfirmed -= PlayerNameConfirmed;
         GameManager.StartAnswering -= ChangeUIState<UIState.AnswerSheet>;
         GameManager.NoMorePendingAnswerSheets -= ChangeUIState<WaitForAnswers>;
         GameManager.StartPresentation -= ChangeUIState<Presentation>;
         GameManager.WinOrTieScreen -= ChangeUIState<WinScreen>;
-        WinScreen.StartTieBreaker -= ChangeUIState<TieBreaker>;
-        WinScreen.StartNewGame -= ChangeUIState<SetupQuestionCards>;
+        GameManager.StartTieBreaker -= ChangeUIState<TieBreaker>;
+        GameManager.StartNewGame -= ChangeUIState<SetupQuestionCards>;
     }
 
     private void Start()
     {
+        PlayerManager.singleton.PlayerAdded += PlayerAdded;
+
         pauseScreen.SetActive(false);
 
         foreach (Transform child in transform)
@@ -110,10 +101,22 @@ public class UIManager : MonoBehaviour
     public void PauseButton(bool pause)
     {
         pauseScreen.SetActive(pause);
+        if (m_currentState.GetType() == typeof(ConnectOnline))
+        {
+            pauseActionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Quit Game");
+            pauseActionButton.onClick.RemoveAllListeners();
+            pauseActionButton.onClick.AddListener(Application.Quit);
+        }
+        else
+        {
+            pauseActionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Disconnect");
+            pauseActionButton.onClick.RemoveAllListeners();
+            pauseActionButton.onClick.AddListener(() => { DisconnectGame(Player.owningPlayer.playerIndex); });
+        }
     }
-    public void DisconnectButton()
+    private void PlayerAdded(Player player)
     {
-        DisconnectGame(Player.owningPlayer.playerIndex);
+        player.Disconnected += DisconnectGame;
     }
     void DisconnectGame(int disconnectingPlayerIndex)
     {

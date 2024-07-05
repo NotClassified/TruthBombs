@@ -225,7 +225,7 @@ GameObject:
   - component: {fileID: 7612802965910464598}
   - component: {fileID: 7465732301773166638}
   m_Layer: 5
-  m_Name: QuestionAnswerCards
+  m_Name: DoubleCard
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

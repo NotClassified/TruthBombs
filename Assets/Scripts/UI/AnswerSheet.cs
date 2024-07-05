@@ -141,6 +141,21 @@ namespace UIState
 
             actionButton.interactable = false;
             actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Please Select a Card");
+
+
+#if UNITY_EDITOR
+            answerInput.text = Player.owningPlayer.playerName.ToString();
+            m_currentAnswerInput = Player.owningPlayer.playerName.ToString();
+
+            for (int i = 0; i < m_questionCardButtons.Count; i++)
+            {
+                if (m_questionCardButtons[i].interactable)
+                {
+                    SelectQuestionCard(i);
+                    break;
+                }
+            }
+#endif
         }
 
         //========================================================================

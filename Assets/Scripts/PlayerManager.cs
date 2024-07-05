@@ -9,7 +9,7 @@ public class PlayerManager : MonoBehaviour
     //========================================================================
     public static PlayerManager singleton;
 
-    public event System.Action PlayerAdded;
+    public event System.Action<Player> PlayerAdded;
 
     //========================================================================
     public int playerCount = 0; 
@@ -39,7 +39,7 @@ public class PlayerManager : MonoBehaviour
         newPlayer.GetComponent<Player>().playerIndex = playerCount;
         playerCount++;
 
-        PlayerAdded?.Invoke();
+        PlayerAdded?.Invoke(newPlayer);
     }
 
     //========================================================================
