@@ -4,6 +4,7 @@ using UnityEngine;
 using Unity.Collections;
 using Unity.Netcode;
 using static AnswerSheet;
+using Unity.VisualScripting;
 
 public class GameManager : NetworkBehaviour
 {
@@ -14,11 +15,17 @@ public class GameManager : NetworkBehaviour
     public static bool signedIn;
     public string currentJoinCode;
 
+    public System.Action<int, int> IncompatiblePlayerVersion;
+    event System.Action<Player> m_Spawned;
+    event System.Action<Player> m_Spawned_GameState;
+
+    //========================================================================
+    public static event System.Action SyncedGameState;
+
+    public static bool disconnectedDueToOnGoingGame;
     public bool playingGame;
     System.Action m_PlayGameCallback;
     System.Action m_StopGameCallback;
-
-    event System.Action m_Spawned;
 
     //========================================================================
     private bool m_serverLock = false;
@@ -83,8 +90,9 @@ public class GameManager : NetworkBehaviour
     {
         singleton = this;
 
+        Player.OwnerSpawned += CheckGameState;
+
         m_gameVersion = int.Parse(Application.version);
-        Player.OwnerSpawned += CheckVersionCompatibility;
 
         m_PlayGameCallback = () => { playingGame = true; };
         StartAnswering += m_PlayGameCallback;
@@ -95,7 +103,6 @@ public class GameManager : NetworkBehaviour
     {
         base.OnDestroy();
 
-        Player.OwnerSpawned -= CheckVersionCompatibility;
         StartAnswering -= m_PlayGameCallback;
         StartNewGame -= m_StopGameCallback;
     }
@@ -103,12 +110,14 @@ public class GameManager : NetworkBehaviour
     public override void OnNetworkSpawn()
     {
         base.OnNetworkSpawn();
-        m_Spawned?.Invoke();
+        m_Spawned?.Invoke(Player.owningPlayer);
     }
 
     public void SubscribeEventsForServer()
     {
+        PlayerManager.singleton.PlayerAdded += CheckVersionCompatibility;
         PlayerManager.singleton.PlayerAdded += (Player _) => { AddQuestionCard(); };
+        PlayerManager.singleton.PlayerAdded += (Player _) => { CheckServerLockResponses(); };
         PlayerManager.singleton.PlayerAdded += (Player _) => { CheckServerLockResponses(); };
     }
 
@@ -151,8 +160,11 @@ public class GameManager : NetworkBehaviour
     }
 
     //========================================================================
-    void CheckVersionCompatibility()
+    void CheckVersionCompatibility(Player player)
     {
+        if (player != Player.owningPlayer)
+            return;
+
         if (!IsSpawned)
         {
             m_Spawned += CheckVersionCompatibility;
@@ -168,9 +180,36 @@ public class GameManager : NetworkBehaviour
     {
         if (version != m_gameVersion)
         {
-            Debug.LogWarning("Player " + ownerIndex + " is using version " + version 
-                + " which doesn't match your version (" + m_gameVersion + ")");
+            if (version == 0)
+                IncompatiblePlayerVersion?.Invoke(PlayerManager.singleton.playerCount, version);
+
+            IncompatiblePlayerVersion?.Invoke(ownerIndex, version);
         }
+    }
+
+    void CheckGameState()
+    {
+        if (!IsSpawned)
+        {
+            m_Spawned_GameState = (Player _) => { CheckGameState(); };
+            m_Spawned += m_Spawned_GameState;
+            return;
+        }
+        m_Spawned -= m_Spawned_GameState;
+
+        if (!IsServer)
+            CheckGameState_ServerRpc();
+    }
+    [Rpc(SendTo.Server)]
+    public void CheckGameState_ServerRpc()
+    {
+        SyncGameState_ClientRpc(playingGame);
+    }
+    [Rpc(SendTo.NotServer)]
+    public void SyncGameState_ClientRpc(bool playingGame)
+    {
+        this.playingGame = playingGame;
+        SyncedGameState?.Invoke();
     }
 
     //========================================================================

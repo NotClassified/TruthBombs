@@ -5,6 +5,7 @@ using UnityEngine.UI;
 using TMPro;
 using UIState;
 using System.Runtime.CompilerServices;
+using System;
 
 public class UIManager : MonoBehaviour
 {
@@ -23,6 +24,8 @@ public class UIManager : MonoBehaviour
     public Transform[] nonStateChildren;
 
     public TextMeshProUGUI playerName;
+    public TextMeshProUGUI versionText;
+    public GameObject disconnectMessage;
 
     //========================================================================
     public GameObject pauseScreen;
@@ -42,6 +45,9 @@ public class UIManager : MonoBehaviour
         GameManager.WinOrTieScreen += ChangeUIState<WinScreen>;
         GameManager.StartTieBreaker += ChangeUIState<TieBreaker>;
         GameManager.StartNewGame += ChangeUIState<SetupQuestionCards>;
+
+        GameManager.SyncedGameState += SyncedGameState;
+        versionText.SetText(Application.version);
     }
 
     private void OnDestroy()
@@ -54,6 +60,11 @@ public class UIManager : MonoBehaviour
         GameManager.WinOrTieScreen -= ChangeUIState<WinScreen>;
         GameManager.StartTieBreaker -= ChangeUIState<TieBreaker>;
         GameManager.StartNewGame -= ChangeUIState<SetupQuestionCards>;
+
+        GameManager.StartAnswering -= HideIncompatibleVersionMessage;
+        GameManager.StartNewGame -= HideIncompatibleVersionMessage;
+
+        GameManager.SyncedGameState -= SyncedGameState;
     }
 
     private void Start()
@@ -78,6 +89,11 @@ public class UIManager : MonoBehaviour
         }
 
         ChangeUIState<ConnectOnline>();
+
+        GameManager.singleton.IncompatiblePlayerVersion += IncompatiblePlayerVersion;
+        GameManager.StartAnswering += HideIncompatibleVersionMessage;
+        GameManager.StartNewGame += HideIncompatibleVersionMessage;
+        disconnectMessage.SetActive(false);
     }
 
     //========================================================================
@@ -130,6 +146,26 @@ public class UIManager : MonoBehaviour
         Destroy(Unity.Netcode.NetworkManager.Singleton.gameObject);
 
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+    }
+
+    //========================================================================
+    void IncompatiblePlayerVersion(int playerIndex, int version)
+    {
+        disconnectMessage.SetActive(true);
+        disconnectMessage.GetComponentInChildren<TextMeshProUGUI>().SetText(
+            "Player " + playerIndex + " has an incompatible version (" + version + ").\nPlease disconnect.");
+    }
+    void HideIncompatibleVersionMessage() => disconnectMessage.gameObject.SetActive(false);
+
+    private void SyncedGameState()
+    {
+        GameManager.disconnectedDueToOnGoingGame = GameManager.singleton.playingGame;
+
+        //game already ongoing?
+        if (GameManager.disconnectedDueToOnGoingGame)
+        {
+            DisconnectGame(Player.owningPlayer.playerIndex);
+        }
     }
 
     //========================================================================

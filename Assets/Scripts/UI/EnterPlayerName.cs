@@ -18,11 +18,6 @@ namespace UIState
         public TextMeshProUGUI joinCodeText;
 
 
-        private void Awake()
-        {
-            singleton = this;
-        }
-
         public override void OnEnter()
         {
             base.OnEnter();
@@ -45,9 +40,12 @@ namespace UIState
                 return;
             confirmingName = true;
 
+            if (currentNameInput == "")
+                currentNameInput = "Player " + Player.owningPlayer.playerIndex.ToString();
+
             GameManager.singleton.ChangePlayerName_ServerRpc(Player.owningPlayer.playerIndex, currentNameInput);
             NameConfirmed?.Invoke(currentNameInput);
         }
-    }
 
+    }
 }

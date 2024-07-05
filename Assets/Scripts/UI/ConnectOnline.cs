@@ -41,6 +41,12 @@ namespace UIState
             connectionFeedbackText.gameObject.SetActive(false);
 
             NetworkManager.Singleton.OnTransportFailure += ConnectionFailure;
+
+            if (GameManager.disconnectedDueToOnGoingGame)
+            {
+                connectionFeedbackText.gameObject.SetActive(true);
+                connectionFeedbackText.SetText("That Game Has Already Started");
+            }
         }
 
         public override void OnExit()
@@ -99,13 +105,6 @@ namespace UIState
                 string joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
                 GameManager.singleton.currentJoinCode = joinCode;
 
-                //NetworkManager.Singleton.GetComponent<UnityTransport>().SetHostRelayData(
-                //    allocation.RelayServer.IpV4,
-                //    (ushort)allocation.RelayServer.Port,
-                //    allocation.AllocationIdBytes,
-                //    allocation.Key,
-                //    allocation.ConnectionData);
-
                 RelayServerData relayServerData = new(allocation, "dtls");
                 NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
 
@@ -129,14 +128,6 @@ namespace UIState
             try
             {
                 JoinAllocation joinAllocation = await RelayService.Instance.JoinAllocationAsync(joinCode);
-
-                //NetworkManager.Singleton.GetComponent<UnityTransport>().SetClientRelayData(
-                //    joinAllocation.RelayServer.IpV4,
-                //    (ushort)joinAllocation.RelayServer.Port,
-                //    joinAllocation.AllocationIdBytes,
-                //    joinAllocation.Key,
-                //    joinAllocation.ConnectionData,
-                //    joinAllocation.HostConnectionData);
 
                 RelayServerData relayServerData = new(joinAllocation, "dtls");
                 NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
