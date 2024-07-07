@@ -27,10 +27,6 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
-        private void OnDestroy()
-        {
-            GameManager.GuesserSelectedPlayer -= SelectPlayer_NonGuesser;
-        }
 
         public override void OnEnter()
         {
@@ -92,7 +88,7 @@ namespace UIState
             }
             else //not the target player
             {
-                GameManager.GuesserSelectedPlayer += SelectPlayer_NonGuesser;
+                GameManager.singleton.GuesserSelectedPlayer += SelectPlayer_NonGuesser;
 
                 actionButton.interactable = false;
                 string targetPlayerName = GameManager.GetPresentingTargetPlayerName();
@@ -136,7 +132,7 @@ namespace UIState
         {
             base.OnExit();
 
-            GameManager.GuesserSelectedPlayer -= SelectPlayer_NonGuesser;
+            GameManager.singleton.GuesserSelectedPlayer -= SelectPlayer_NonGuesser;
             actionButton.onClick.RemoveAllListeners();
         }
 

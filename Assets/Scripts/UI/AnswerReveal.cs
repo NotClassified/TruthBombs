@@ -22,23 +22,18 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
-        private void OnDestroy()
-        {
-            GameManager.RevealAnswer -= RevealAnswer;
-            GameManager.LastSheetAnswerRevealed -= AllAnswersRevealed;
-        }
 
         public override void OnEnter()
         {
             base.OnEnter();
 
-            GameManager.RevealAnswer += RevealAnswer;
+            GameManager.singleton.RevealAnswer += RevealAnswer;
 
             m_selectedCardIndex = -1;
 
             if (GameManager.GetPresentingSheetIndex() == Player.owningPlayer.playerIndex)
             {
-                GameManager.LastSheetAnswerRevealed += AllAnswersRevealed;
+                GameManager.singleton.LastSheetAnswerRevealed += AllAnswersRevealed;
 
                 actionButton.interactable = true;
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Reveal Answer");
@@ -78,8 +73,8 @@ namespace UIState
         {
             base.OnExit();
 
-            GameManager.RevealAnswer -= RevealAnswer;
-            GameManager.LastSheetAnswerRevealed -= AllAnswersRevealed;
+            GameManager.singleton.RevealAnswer -= RevealAnswer;
+            GameManager.singleton.LastSheetAnswerRevealed -= AllAnswersRevealed;
             actionButton.onClick.RemoveAllListeners();
         }
 
@@ -96,7 +91,7 @@ namespace UIState
         }
         void UnselectCard(int cardIndex)
         {
-            if (m_selectedCardIndex == -1)
+            if (cardIndex == -1)
                 return; //there wasn't a previous selected card
 
             SetCardColor(m_questionAnswerCards[cardIndex], UIManager.singleton.unselectedUIColor);

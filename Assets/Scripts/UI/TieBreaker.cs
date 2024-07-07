@@ -32,21 +32,14 @@ namespace UIState
         //========================================================================
         private void Awake()
         {
-            GameManager.NewTieQuestion += SetQuestionCard;
-
             m_removeQuestionCardListeners = (int _) => { questionCard.onClick.RemoveAllListeners(); };
-        }
-        private void OnDestroy()
-        {
-            GameManager.NewTieQuestion -= SetQuestionCard;
-            GameManager.AllTieAnswersConfirmed -= AllowVoting;
-            GameManager.AllTieAnswersConfirmed -= WaitForVotes;
-            GameManager.TieAnswerConfirmed -= m_removeQuestionCardListeners;
         }
 
         public override void OnEnter()
         {
             base.OnEnter();
+
+            GameManager.singleton.NewTieQuestion += SetQuestionCard;
 
             m_confirming = false;
             m_selectedCardIndex = -1;
@@ -74,7 +67,10 @@ namespace UIState
                 actionButton.interactable = false;
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Waiting for Answers...");
 
-                GameManager.AllTieAnswersConfirmed += AllowVoting;
+                GameManager.singleton.AllTieAnswersConfirmed += AllowVoting;
+
+                questionCard.onClick.AddListener(GameManager.singleton.ChangeTieQuestion_ServerRpc);
+                GameManager.singleton.TieAnswerConfirmed += m_removeQuestionCardListeners;
             }
             else //one of the tying players
             {
@@ -88,13 +84,7 @@ namespace UIState
                 actionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Confirm Answer");
                 actionButton.onClick.AddListener(ConfirmAnswer);
 
-                GameManager.AllTieAnswersConfirmed += WaitForVotes;
-            }
-
-            if (Player.owningPlayer.IsOwnedByServer)
-            {
-                questionCard.onClick.AddListener(GameManager.singleton.ChangeTieQuestion_ServerRpc);
-                GameManager.TieAnswerConfirmed += m_removeQuestionCardListeners;
+                GameManager.singleton.AllTieAnswersConfirmed += WaitForVotes;
             }
         }
         public override void OnExit()
@@ -102,10 +92,10 @@ namespace UIState
             base.OnExit();
 
             actionButton.onClick.RemoveAllListeners();
-            GameManager.NewTieQuestion -= SetQuestionCard;
-            GameManager.AllTieAnswersConfirmed -= AllowVoting;
-            GameManager.AllTieAnswersConfirmed -= WaitForVotes;
-            GameManager.TieAnswerConfirmed -= m_removeQuestionCardListeners;
+            GameManager.singleton.NewTieQuestion -= SetQuestionCard;
+            GameManager.singleton.AllTieAnswersConfirmed -= AllowVoting;
+            GameManager.singleton.AllTieAnswersConfirmed -= WaitForVotes;
+            GameManager.singleton.TieAnswerConfirmed -= m_removeQuestionCardListeners;
         }
 
         //========================================================================
@@ -156,7 +146,7 @@ namespace UIState
         }
         void AllowVoting()
         {
-            GameManager.AllTieAnswersConfirmed -= AllowVoting;
+            GameManager.singleton.AllTieAnswersConfirmed -= AllowVoting;
 
             headerMessageText.SetText("Vote on a Favorite");
 
@@ -198,8 +188,6 @@ namespace UIState
         }
         void SetUpPlayerAnswerCards(bool isTiePlayer)
         {
-            print("SetUpPlayerAnswerCards");
-
             foreach (Transform button in m_playerAnswerCards)
             {
                 if (button == null)

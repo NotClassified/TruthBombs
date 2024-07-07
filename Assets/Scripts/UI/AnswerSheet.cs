@@ -33,16 +33,11 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
-        private void OnDestroy()
-        {
-            GameManager.NewPendingAnswerSheet -= AddAnswerSheet;
-        }
-
         public override void OnEnter()
         {
             base.OnEnter();
 
-            GameManager.NewPendingAnswerSheet += AddAnswerSheet;
+            GameManager.singleton.NewPendingAnswerSheet += AddAnswerSheet;
 
             //set question cards
             {
@@ -68,7 +63,7 @@ namespace UIState
         {
             base.OnExit();
 
-            GameManager.NewPendingAnswerSheet -= AddAnswerSheet;
+            GameManager.singleton.NewPendingAnswerSheet -= AddAnswerSheet;
 
             for (int i = 0; i < m_questionCardButtons.Count; i++)
             {
@@ -171,7 +166,7 @@ namespace UIState
         }
         void UnselectCard(int cardIndex)
         {
-            if (m_selectedQuestionCardIndex == -1)
+            if (cardIndex == -1)
                 return; //there wasn't a previous selected card
 
             m_questionCardButtons[cardIndex].image.color = UIManager.singleton.unselectedUIColor;

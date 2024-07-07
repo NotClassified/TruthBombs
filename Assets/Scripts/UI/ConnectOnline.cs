@@ -9,21 +9,44 @@ using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using Unity.Networking.Transport.Relay;
 using Unity.Netcode.Transports.UTP;
+using System.Reflection;
+using UnityEngine.UI;
 
 namespace UIState
 {
     public class ConnectOnline : StateBase
     {
         //========================================================================
+        public NetworkManager networkManagerPrefab;
+
         public TextMeshProUGUI connectionFeedbackText;
         public TMP_InputField maxPlayerInput;
         public TMP_InputField joinCodeInput;
 
+        public TextMeshProUGUI encryptionToggleText;
+        public static string encryptionType = "";
+
         bool connecting = false;
+
+        bool isUsingRelay;
 
         //========================================================================
         private async void Start()
         {
+            NetworkManager networkManager = NetworkManager.Singleton;
+            if (networkManager == null)
+                networkManager = Instantiate(networkManagerPrefab);
+
+            networkManager.OnTransportFailure += ConnectionFailure;
+
+            isUsingRelay = networkManager.GetComponent<UnityTransport>().Protocol == UnityTransport.ProtocolType.RelayUnityTransport;
+
+            if (!isUsingRelay)
+            {
+                ConnectionFailure("Not using Unity Relay Service");
+                return;
+            }
+
             if (GameManager.signedIn)
                 return;
 
@@ -40,9 +63,12 @@ namespace UIState
             joinCodeInput.text = "";
             connectionFeedbackText.gameObject.SetActive(false);
 
-            NetworkManager.Singleton.OnTransportFailure += ConnectionFailure;
+            if (encryptionType != "")
+                encryptionToggleText.SetText(encryptionType);
+            else
+                ToggleEncryption();
 
-            if (GameManager.disconnectedDueToOnGoingGame)
+            if (GameManager.singleton.disconnectedDueToOnGoingGame)
             {
                 connectionFeedbackText.gameObject.SetActive(true);
                 connectionFeedbackText.SetText("That Game Has Already Started");
@@ -97,15 +123,27 @@ namespace UIState
                 ConnectionFailure("Need More Players");
                 return;
             }
+            GameManager.singleton.maxPlayers = playerAllocations;
 
             try
             {
+                if (!isUsingRelay)
+                {
+                    NetworkManager.Singleton.StartHost();
+                    return;
+                }
+
                 Allocation allocation = await RelayService.Instance.CreateAllocationAsync(playerAllocations - 1);
 
                 string joinCode = await RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
                 GameManager.singleton.currentJoinCode = joinCode;
 
-                RelayServerData relayServerData = new(allocation, "dtls");
+                TextEditor te = new TextEditor();
+                te.text = joinCode;
+                te.SelectAll();
+                te.Copy();
+
+                RelayServerData relayServerData = new(allocation, encryptionToggleText.text);
                 NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
 
                 NetworkManager.Singleton.StartHost();
@@ -119,7 +157,7 @@ namespace UIState
         async void StartClient()
         {
             string joinCode = joinCodeInput.text;
-            if (joinCode == null || joinCode == "")
+            if ((joinCode == null || joinCode == "") && isUsingRelay)
             {
                 ConnectionFailure("Please Input Join Code");
                 return;
@@ -127,9 +165,15 @@ namespace UIState
 
             try
             {
+                if (!isUsingRelay)
+                {
+                    NetworkManager.Singleton.StartClient();
+                    return;
+                }
+
                 JoinAllocation joinAllocation = await RelayService.Instance.JoinAllocationAsync(joinCode);
 
-                RelayServerData relayServerData = new(joinAllocation, "dtls");
+                RelayServerData relayServerData = new(joinAllocation, encryptionToggleText.text);
                 NetworkManager.Singleton.GetComponent<UnityTransport>().SetRelayServerData(relayServerData);
 
                 GameManager.singleton.currentJoinCode = joinCode;
@@ -151,6 +195,16 @@ namespace UIState
 
             connectionFeedbackText.gameObject.SetActive(true);
             connectionFeedbackText.SetText(message);
+        }
+
+        public void ToggleEncryption()
+        {
+            if (encryptionType == "udp")
+                encryptionType = "dtls";
+            else
+                encryptionType = "udp";
+
+            encryptionToggleText.SetText(encryptionType);
         }
 
         //========================================================================

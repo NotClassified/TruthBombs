@@ -13,10 +13,6 @@ namespace UIState
         public Button actionButton;
 
         //========================================================================
-        private void OnDestroy()
-        {
-            GameManager.TieDataSynced -= TieDataSynced;
-        }
         public override void OnEnter()
         {
             base.OnEnter();
@@ -33,7 +29,7 @@ namespace UIState
 
                 if (!GameManager.singleton.isTieDataSynced)
                 {
-                    GameManager.TieDataSynced += TieDataSynced;
+                    GameManager.singleton.TieDataSynced += TieDataSynced;
                 }
                 else //is already synced
                     TieDataSynced();
@@ -78,7 +74,7 @@ namespace UIState
 
         void TieDataSynced()
         {
-            GameManager.TieDataSynced -= TieDataSynced;
+            GameManager.singleton.TieDataSynced -= TieDataSynced;
 
             string tieMessage = "";
             for (int i = 0; i < GameManager.singleton.currentTieData.tiePlayers.Count; i++)

@@ -15,13 +15,6 @@ namespace UIState
         //========================================================================
         StateBase m_currentState;
 
-        private void OnDestroy()
-        {
-            GameManager.PresentNextSheet -= ChangeUIState<AnswerReveal>;
-            GameManager.FavoriteAnswerConfirmed -= ChangeUIState<GuessPlayer>;
-            GameManager.GuessConfirmed -= ChangeUIState<ScoreBoard>;
-        }
-
         public override void OnEnter()
         {
             base.OnEnter();
@@ -31,9 +24,9 @@ namespace UIState
                 child.gameObject.SetActive(false);
             }
 
-            GameManager.PresentNextSheet += ChangeUIState<AnswerReveal>;
-            GameManager.FavoriteAnswerConfirmed += ChangeUIState<GuessPlayer>;
-            GameManager.GuessConfirmed += ChangeUIState<ScoreBoard>;
+            GameManager.singleton.PresentNextSheet += ChangeUIState<AnswerReveal>;
+            GameManager.singleton.FavoriteAnswerConfirmed += ChangeUIState<GuessPlayer>;
+            GameManager.singleton.GuessConfirmed += ChangeUIState<ScoreBoard>;
 
             ChangeUIState<AnswerReveal>();
         }
@@ -41,9 +34,9 @@ namespace UIState
         {
             base.OnExit();
 
-            GameManager.PresentNextSheet -= ChangeUIState<AnswerReveal>;
-            GameManager.FavoriteAnswerConfirmed -= ChangeUIState<GuessPlayer>;
-            GameManager.GuessConfirmed -= ChangeUIState<ScoreBoard>;
+            GameManager.singleton.PresentNextSheet -= ChangeUIState<AnswerReveal>;
+            GameManager.singleton.FavoriteAnswerConfirmed -= ChangeUIState<GuessPlayer>;
+            GameManager.singleton.GuessConfirmed -= ChangeUIState<ScoreBoard>;
 
             m_currentState?.OnExit();
             m_currentState = null;

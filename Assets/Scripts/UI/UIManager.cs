@@ -6,6 +6,7 @@ using TMPro;
 using UIState;
 using System.Runtime.CompilerServices;
 using System;
+using Unity.Netcode;
 
 public class UIManager : MonoBehaviour
 {
@@ -29,7 +30,8 @@ public class UIManager : MonoBehaviour
 
     //========================================================================
     public GameObject pauseScreen;
-    bool restartingGame = false;
+    public bool restartingGame = false;
+    public Button quitButton;
     public Button pauseActionButton;
 
     //========================================================================
@@ -37,42 +39,42 @@ public class UIManager : MonoBehaviour
     {
         singleton = this;
 
-        Player.OwnerSpawned += ChangeUIState<EnterPlayerName>;
-        EnterPlayerName.NameConfirmed += PlayerNameConfirmed;
-        GameManager.StartAnswering += ChangeUIState<UIState.AnswerSheet>;
-        GameManager.NoMorePendingAnswerSheets += ChangeUIState<WaitForAnswers>;
-        GameManager.StartPresentation += ChangeUIState<Presentation>;
-        GameManager.WinOrTieScreen += ChangeUIState<WinScreen>;
-        GameManager.StartTieBreaker += ChangeUIState<TieBreaker>;
-        GameManager.StartNewGame += ChangeUIState<SetupQuestionCards>;
-
-        GameManager.SyncedGameState += SyncedGameState;
-        versionText.SetText(Application.version);
+        Player.OwnerSpawned += OwnerSpawned;
+        Player.NameConfirmed += PlayerNameConfirmed;
     }
 
     private void OnDestroy()
     {
-        Player.OwnerSpawned -= ChangeUIState<EnterPlayerName>;
-        EnterPlayerName.NameConfirmed -= PlayerNameConfirmed;
-        GameManager.StartAnswering -= ChangeUIState<UIState.AnswerSheet>;
-        GameManager.NoMorePendingAnswerSheets -= ChangeUIState<WaitForAnswers>;
-        GameManager.StartPresentation -= ChangeUIState<Presentation>;
-        GameManager.WinOrTieScreen -= ChangeUIState<WinScreen>;
-        GameManager.StartTieBreaker -= ChangeUIState<TieBreaker>;
-        GameManager.StartNewGame -= ChangeUIState<SetupQuestionCards>;
-
-        GameManager.StartAnswering -= HideIncompatibleVersionMessage;
-        GameManager.StartNewGame -= HideIncompatibleVersionMessage;
-
-        GameManager.SyncedGameState -= SyncedGameState;
+        Player.OwnerSpawned -= OwnerSpawned;
+        Player.NameConfirmed -= PlayerNameConfirmed;
     }
 
     private void Start()
     {
         PlayerManager.singleton.PlayerAdded += PlayerAdded;
 
-        pauseScreen.SetActive(false);
+        GameManager.singleton.StartAnswering += ChangeUIState<UIState.AnswerSheet>;
+        GameManager.singleton.NoMorePendingAnswerSheets += ChangeUIState<WaitForAnswers>;
+        GameManager.singleton.StartPresentation += ChangeUIState<Presentation>;
+        GameManager.singleton.WinOrTieScreen += ChangeUIState<WinScreen>;
+        GameManager.singleton.StartTieBreaker += ChangeUIState<TieBreaker>;
+        GameManager.singleton.StartNewGame += ChangeUIState<SetupQuestionCards>;
 
+        GameManager.singleton.SyncedGameState += SyncedGameState;
+
+        //non state UI
+        {
+            GameManager.singleton.IncompatiblePlayerVersion += IncompatiblePlayerVersion;
+            GameManager.singleton.StartAnswering += HideIncompatibleVersionMessage;
+            GameManager.singleton.StartNewGame += HideIncompatibleVersionMessage;
+            disconnectMessage.SetActive(false);
+
+            versionText.SetText("version: " + Application.version);
+            quitButton.onClick.AddListener(Application.Quit);
+            pauseScreen.SetActive(false);
+        }
+
+        //state UI
         foreach (Transform child in transform)
         {
             bool isStateChild = true;
@@ -89,11 +91,6 @@ public class UIManager : MonoBehaviour
         }
 
         ChangeUIState<ConnectOnline>();
-
-        GameManager.singleton.IncompatiblePlayerVersion += IncompatiblePlayerVersion;
-        GameManager.StartAnswering += HideIncompatibleVersionMessage;
-        GameManager.StartNewGame += HideIncompatibleVersionMessage;
-        disconnectMessage.SetActive(false);
     }
 
     //========================================================================
@@ -119,33 +116,53 @@ public class UIManager : MonoBehaviour
         pauseScreen.SetActive(pause);
         if (m_currentState.GetType() == typeof(ConnectOnline))
         {
-            pauseActionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Quit Game");
+            pauseActionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Restart Game");
             pauseActionButton.onClick.RemoveAllListeners();
-            pauseActionButton.onClick.AddListener(Application.Quit);
+            pauseActionButton.onClick.AddListener(ForceRestartNetworkManager);
+            quitButton.gameObject.SetActive(true);
         }
         else
         {
             pauseActionButton.GetComponentInChildren<TextMeshProUGUI>().SetText("Disconnect");
             pauseActionButton.onClick.RemoveAllListeners();
             pauseActionButton.onClick.AddListener(() => { DisconnectGame(Player.owningPlayer.playerIndex); });
+            quitButton.gameObject.SetActive(false);
         }
     }
     private void PlayerAdded(Player player)
     {
-        player.Disconnected += DisconnectGame;
+        if (GameManager.singleton.IsServer)
+            player.ClientDisconnected += DisconnectGame;
     }
+    private void OwnerSpawned()
+    {
+        ChangeUIState<EnterPlayerName>();
+        if (NetworkManager.Singleton.IsServer)
+            NetworkManager.Singleton.OnServerStopped += ReloadScene;
+        else
+            NetworkManager.Singleton.OnClientStopped += ReloadScene;
+    }
+
     void DisconnectGame(int disconnectingPlayerIndex)
     {
         if (restartingGame)
             return;
         restartingGame = true;
 
-        Player.disconnectingPlayerIndex = Player.owningPlayer.playerIndex;
-
-        Unity.Netcode.NetworkManager.Singleton.Shutdown();
-        Destroy(Unity.Netcode.NetworkManager.Singleton.gameObject);
-
+        if (GameManager.singleton.IsServer)
+            NetworkManager.Singleton.Shutdown();
+        else
+            GameManager.singleton.DisconnectClient_ServerRpc(Player.owningPlayer.OwnerClientId);
+    }
+    void ReloadScene(bool _) => ReloadScene();
+    void ReloadScene()
+    {
         UnityEngine.SceneManagement.SceneManager.LoadScene(UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex);
+    }
+    void ForceRestartNetworkManager()
+    {
+        NetworkManager.Singleton.Shutdown();
+        Invoke(nameof(ReloadScene), .05f);
     }
 
     //========================================================================
@@ -159,10 +176,12 @@ public class UIManager : MonoBehaviour
 
     private void SyncedGameState()
     {
-        GameManager.disconnectedDueToOnGoingGame = GameManager.singleton.playingGame;
+        GameManager.singleton.SyncedGameState -= SyncedGameState;
+
+        GameManager.singleton.disconnectedDueToOnGoingGame = GameManager.singleton.isPlayingGame;
 
         //game already ongoing?
-        if (GameManager.disconnectedDueToOnGoingGame)
+        if (GameManager.singleton.disconnectedDueToOnGoingGame)
         {
             DisconnectGame(Player.owningPlayer.playerIndex);
         }

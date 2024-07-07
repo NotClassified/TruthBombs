@@ -7,11 +7,12 @@ using Unity.Collections;
 public class Player : NetworkBehaviour
 {
     public static Player owningPlayer;
-    public static int disconnectingPlayerIndex = -1;
 
     public static event System.Action OwnerSpawned;
     /// <summary>(int disconnectedPlayerIndex)</summary>
-    public event System.Action<int> Disconnected;
+    public event System.Action<int> ClientDisconnected;
+
+    public static System.Action<string> NameConfirmed;
 
     public int playerIndex;
     public FixedString32Bytes playerName;
@@ -20,7 +21,7 @@ public class Player : NetworkBehaviour
     {
         base.OnNetworkSpawn();
 
-        if (GameManager.singleton.playingGame)
+        if (GameManager.singleton.isPlayingGame)
             return;
 
         if (IsOwner)
@@ -39,7 +40,6 @@ public class Player : NetworkBehaviour
     {
         base.OnNetworkDespawn();
 
-        if (owningPlayer.playerIndex != disconnectingPlayerIndex)
-            Disconnected?.Invoke(playerIndex); //don't call on the owner client that is disconnecting
+        ClientDisconnected?.Invoke(playerIndex);
     }
 }

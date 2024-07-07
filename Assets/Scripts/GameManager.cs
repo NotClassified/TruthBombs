@@ -14,16 +14,17 @@ public class GameManager : NetworkBehaviour
 
     public static bool signedIn;
     public string currentJoinCode;
+    public int maxPlayers;
 
     public System.Action<int, int> IncompatiblePlayerVersion;
     event System.Action<Player> m_Spawned;
     event System.Action<Player> m_Spawned_GameState;
 
     //========================================================================
-    public static event System.Action SyncedGameState;
+    public event System.Action SyncedGameState;
 
-    public static bool disconnectedDueToOnGoingGame;
-    public bool playingGame;
+    public bool disconnectedDueToOnGoingGame;
+    public bool isPlayingGame;
     System.Action m_PlayGameCallback;
     System.Action m_StopGameCallback;
 
@@ -33,41 +34,46 @@ public class GameManager : NetworkBehaviour
     private int m_serverLockResponseCount;
 
     //========================================================================
-    public static event System.Action PlayerNameConfirmed;
+    public event System.Action PlayerNameConfirmed;
+    public int confirmedPlayerNameCount;
 
     //========================================================================
-    public static event System.Action QuestionCardsUpdated;
+    public event System.Action QuestionCardsUpdated;
     public List<int> currentQuestionCards = new();
+    public List<FixedString128Bytes> currentCustomQuestions = new();
+
+    public event System.Action<int /*editingPlayerIndex*/> NewCustomEditingPlayer;
+    public bool customEditModeInUse = false;
 
     //========================================================================
-    public static event System.Action StartAnswering;
-    public static event System.Action<AnswerSheet> NewPendingAnswerSheet;
-    public static event System.Action NoMorePendingAnswerSheets;
+    public event System.Action StartAnswering;
+    public event System.Action<AnswerSheet> NewPendingAnswerSheet;
+    public event System.Action NoMorePendingAnswerSheets;
     public List<AnswerSheet> answerSheets = new();
 
     //========================================================================
-    public static event System.Action StartPresentation;
-    public static event System.Action PresentNextSheet;
+    public event System.Action StartPresentation;
+    public event System.Action PresentNextSheet;
 
     private int m_firstPresentedSheet;
     private int m_presentationSheetIndex;
     private int m_presentationAnswerIndex;
 
     //========================================================================
-    public static event System.Action<int /*sheetIndex*/, int /*answerIndex*/> RevealAnswer;
-    public static event System.Action LastSheetAnswerRevealed;
+    public event System.Action<int /*sheetIndex*/, int /*answerIndex*/> RevealAnswer;
+    public event System.Action LastSheetAnswerRevealed;
 
-    public static event System.Action FavoriteAnswerConfirmed;
+    public event System.Action FavoriteAnswerConfirmed;
 
-    public static event System.Action GuessConfirmed;
-    public static event System.Action<int> GuesserSelectedPlayer;
+    public event System.Action GuessConfirmed;
+    public event System.Action<int> GuesserSelectedPlayer;
 
     //========================================================================
-    public static event System.Action WinOrTieScreen;
-    public static event System.Action StartNewGame;
-    public static event System.Action StartTieBreaker;
-    public static event System.Action TieDataSynced;
-    public static event System.Action<int /*questionIndex*/> NewTieQuestion;
+    public event System.Action WinOrTieScreen;
+    public event System.Action StartNewGame;
+    public event System.Action StartTieBreaker;
+    public event System.Action TieDataSynced;
+    public event System.Action<int /*questionIndex*/> NewTieQuestion;
     public bool isTieDataSynced;
 
     public List<int> playerScores = new();
@@ -79,8 +85,8 @@ public class GameManager : NetworkBehaviour
     public bool allPlayersTied;
 
     //========================================================================
-    public static event System.Action<int /*tieIndex*/> TieAnswerConfirmed;
-    public static event System.Action AllTieAnswersConfirmed;
+    public event System.Action<int /*tieIndex*/> TieAnswerConfirmed;
+    public event System.Action AllTieAnswersConfirmed;
 
     int m_tieAnswerCount;
     int m_voteCount;
@@ -94,15 +100,16 @@ public class GameManager : NetworkBehaviour
 
         m_gameVersion = int.Parse(Application.version);
 
-        m_PlayGameCallback = () => { playingGame = true; };
+        m_PlayGameCallback = () => { isPlayingGame = true; };
         StartAnswering += m_PlayGameCallback;
-        m_StopGameCallback = () => { playingGame = false; };
+        m_StopGameCallback = () => { isPlayingGame = false; };
         StartNewGame += m_StopGameCallback;
     }
     public override void OnDestroy()
     {
         base.OnDestroy();
 
+        Player.OwnerSpawned -= CheckGameState;
         StartAnswering -= m_PlayGameCallback;
         StartNewGame -= m_StopGameCallback;
     }
@@ -111,13 +118,15 @@ public class GameManager : NetworkBehaviour
     {
         base.OnNetworkSpawn();
         m_Spawned?.Invoke(Player.owningPlayer);
+
+        if (!IsServer)
+            SyncMaxPlayerCount_ServerRpc();
     }
 
     public void SubscribeEventsForServer()
     {
         PlayerManager.singleton.PlayerAdded += CheckVersionCompatibility;
         PlayerManager.singleton.PlayerAdded += (Player _) => { AddQuestionCard(); };
-        PlayerManager.singleton.PlayerAdded += (Player _) => { CheckServerLockResponses(); };
         PlayerManager.singleton.PlayerAdded += (Player _) => { CheckServerLockResponses(); };
     }
 
@@ -131,11 +140,13 @@ public class GameManager : NetworkBehaviour
     /// <returns>the previous lock state</returns>
     bool LockServer(int targetResponses)
     {
+        if (m_serverLock)
+            return true; //already locked
+
         m_serverLockTargetResponseCount = targetResponses;
 
-        bool previousState = m_serverLock;
         m_serverLock = true;
-        return previousState;
+        return false;
     }
     /// <summary>
     /// Responds to the server that a server locked function has finished execution.
@@ -187,6 +198,17 @@ public class GameManager : NetworkBehaviour
         }
     }
 
+    [Rpc(SendTo.Server)]
+    void SyncMaxPlayerCount_ServerRpc()
+    {
+        SyncMaxPlayerCount_ClientRpc(maxPlayers);
+    }
+    [Rpc(SendTo.NotServer)]
+    void SyncMaxPlayerCount_ClientRpc(int maxPlayerCount)
+    {
+        maxPlayers = maxPlayerCount;
+    }
+
     void CheckGameState()
     {
         if (!IsSpawned)
@@ -203,13 +225,19 @@ public class GameManager : NetworkBehaviour
     [Rpc(SendTo.Server)]
     public void CheckGameState_ServerRpc()
     {
-        SyncGameState_ClientRpc(playingGame);
+        SyncGameState_ClientRpc(isPlayingGame);
     }
     [Rpc(SendTo.NotServer)]
     public void SyncGameState_ClientRpc(bool playingGame)
     {
-        this.playingGame = playingGame;
+        this.isPlayingGame = playingGame;
         SyncedGameState?.Invoke();
+    }
+
+    [Rpc(SendTo.Server)]
+    public void DisconnectClient_ServerRpc(ulong clientID)
+    {
+        NetworkManager.Singleton.DisconnectClient(clientID);
     }
 
     //========================================================================
@@ -217,6 +245,7 @@ public class GameManager : NetworkBehaviour
     public void ChangePlayerName_ServerRpc(int playerIndex, FixedString32Bytes newName)
     {
         PlayerManager.singleton.allPlayers[playerIndex].playerName = newName;
+        confirmedPlayerNameCount++;
         PlayerNameConfirmed?.Invoke();
         SyncAllPlayerNames_ServerRpc();
     }
@@ -249,42 +278,83 @@ public class GameManager : NetworkBehaviour
             return; //do not create a question card for the first player
 
         currentQuestionCards.Add(DataManager.singleton.GetRandomQuestion(currentQuestionCards));
+        currentCustomQuestions.Add("");
 
         QuestionCardsUpdated?.Invoke();
 
-        SyncCurrentQuestionCardsOnClients_Host();
+        SyncCurrentQuestionCards_ServerRpc();
     }
     public List<FixedString128Bytes> GetCurrentQuestionCards()
     {
         List<FixedString128Bytes> questionCards = new();
-        foreach (int cardIndex in currentQuestionCards)
+        for (int i = 0; i < currentQuestionCards.Count; i++)
         {
-            questionCards.Add(DataManager.singleton.GetQuestion(cardIndex));
+            if (currentQuestionCards[i] != -1)
+                questionCards.Add(DataManager.singleton.GetQuestion(currentQuestionCards[i]));
+            else
+                questionCards.Add(currentCustomQuestions[i]);
         }
         return questionCards;
     }
-    public void ChangeQuestionCard_Host(int cardIndex)
-    {
-        currentQuestionCards[cardIndex] = DataManager.singleton.GetRandomQuestion(currentQuestionCards);
-
-        QuestionCardsUpdated?.Invoke();
-
-        SyncCurrentQuestionCardsOnClients_Host();
-    }
-    void ChangeQuestionCard_Client(int cardIndex, int card)
-    {
-        if (cardIndex == currentQuestionCards.Count)
-            currentQuestionCards.Add(card);
-        else
-            currentQuestionCards[cardIndex] = card;
-    }
 
     //========================================================================
-    void SyncCurrentQuestionCardsOnClients_Host()
+    [Rpc(SendTo.Server)]
+    public void RequestCustomQuestionEditMode_ServerRpc(int requestingPlayerIndex)
+    {
+        if (customEditModeInUse)
+            return;
+
+        if (LockServer(PlayerManager.singleton.playerCount))
+            return;
+
+        SyncCustomEditModeUse_Rpc(requestingPlayerIndex);
+    }
+    [Rpc(SendTo.Everyone)]
+    void SyncCustomEditModeUse_Rpc(int editingPlayerIndex)
+    {
+        customEditModeInUse = true;
+        NewCustomEditingPlayer?.Invoke(editingPlayerIndex);
+        RespondToServerLock_ServerRpc();
+    }
+    [Rpc(SendTo.Everyone)]
+    public void CancelCustomQuestionEdit_Rpc()
+    {
+        customEditModeInUse = false;
+        QuestionCardsUpdated?.Invoke();
+    }
+
+    [Rpc(SendTo.Server)]
+    public void SetCustomQuestionCard_ServerRpc(int cardIndex, FixedString128Bytes customQuestion)
+    {
+        currentQuestionCards[cardIndex] = -1;
+        currentCustomQuestions[cardIndex] = customQuestion;
+
+        SyncCurrentQuestionCards_ServerRpc();
+    }
+    [Rpc(SendTo.Server)]
+    public void ChangeQuestionCard_ServerRpc(int cardIndex)
+    {
+        if (customEditModeInUse)
+            return;
+
+        if (LockServer(PlayerManager.singleton.playerCount))
+            return;
+
+        currentQuestionCards[cardIndex] = DataManager.singleton.GetRandomQuestion(currentQuestionCards);
+        currentCustomQuestions[cardIndex] = "";
+
+        SyncCurrentQuestionCards_ServerRpc();
+    }
+    //========================================================================
+    [Rpc(SendTo.Server)]
+    public void SyncCurrentQuestionCards_ServerRpc()
     {
         for (int i = 0; i < currentQuestionCards.Count; i++)
         {
-            SyncSingleQuestionCard_ClientRpc(i, currentQuestionCards[i]);
+            if (currentQuestionCards[i] != -1)
+                SyncSingleQuestionCard_ClientRpc(i, currentQuestionCards[i]);
+            else
+                SyncSingleCustomQuestionCard_ClientRpc(i, currentCustomQuestions[i]);
         }
         FinishedQuestionCardSync_ClientRpc();
     }
@@ -294,41 +364,40 @@ public class GameManager : NetworkBehaviour
         if (cardIndex > currentQuestionCards.Count)
             Debug.LogError("question cards not updating in order");
 
-        ChangeQuestionCard_Client(cardIndex, card);
+        if (cardIndex == currentQuestionCards.Count)
+        {
+            currentQuestionCards.Add(card);
+            currentCustomQuestions.Add("");
+        }
+        else
+        {
+            currentQuestionCards[cardIndex] = card;
+            currentCustomQuestions[cardIndex] = "";
+        }
     }
     [Rpc(SendTo.NotServer)]
-    void FinishedQuestionCardSync_ClientRpc()
+    void SyncSingleCustomQuestionCard_ClientRpc(int cardIndex, FixedString128Bytes card)
     {
-        QuestionCardsUpdated?.Invoke();
-    }
-
-    //========================================================================
-    public void SyncCurrentQuestionCards_OwnerClient()
-    {
-        SyncCurrentQuestionCards_TargetRpc(RpcTarget.Owner);
-    }
-    [Rpc(SendTo.Server, AllowTargetOverride = true)]
-    void SyncCurrentQuestionCards_TargetRpc(RpcParams targetRpc)
-    {
-        RpcParams target = RpcTarget.Single(targetRpc.Receive.SenderClientId, RpcTargetUse.Temp);
-        for (int i = 0; i < currentQuestionCards.Count; i++)
-        {
-            SyncSingleQuestionCard_TargetRpc(i, currentQuestionCards[i], target);
-        }
-        FinishedQuestionCardSync_TargetRpc(target);
-    }
-    [Rpc(SendTo.SpecifiedInParams)]
-    void SyncSingleQuestionCard_TargetRpc(int cardIndex, int card, RpcParams targetRPC)
-    {
-        if (cardIndex > currentQuestionCards.Count)
+        if (cardIndex > currentCustomQuestions.Count)
             Debug.LogError("question cards not updating in order");
 
-        ChangeQuestionCard_Client(cardIndex, card);
+        if (cardIndex == currentQuestionCards.Count)
+        {
+            currentQuestionCards.Add(-1);
+            currentCustomQuestions.Add(card);
+        }
+        else
+        {
+            currentQuestionCards[cardIndex] = -1;
+            currentCustomQuestions[cardIndex] = card;
+        }
     }
-    [Rpc(SendTo.SpecifiedInParams)]
-    void FinishedQuestionCardSync_TargetRpc(RpcParams targetRPC)
+    [Rpc(SendTo.Everyone)]
+    void FinishedQuestionCardSync_ClientRpc()
     {
+        customEditModeInUse = false;
         QuestionCardsUpdated?.Invoke();
+        RespondToServerLock_ServerRpc();
     }
 
     //========================================================================
@@ -487,7 +556,7 @@ public class GameManager : NetworkBehaviour
 
         //start presentation
         int randomPlayer = Random.Range(0, PlayerManager.singleton.playerCount);
-        StartPresentation_Rpc(0);
+        StartPresentation_Rpc(randomPlayer);
     }
 
     //========================================================================

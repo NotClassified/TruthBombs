@@ -9,14 +9,11 @@ namespace UIState
 {
     public class EnterPlayerName : StateBase
     {
-        public static EnterPlayerName singleton;
-        public static event System.Action<string> NameConfirmed;
         bool confirmingName;
 
         string currentNameInput = "";
 
         public TextMeshProUGUI joinCodeText;
-
 
         public override void OnEnter()
         {
@@ -44,7 +41,7 @@ namespace UIState
                 currentNameInput = "Player " + Player.owningPlayer.playerIndex.ToString();
 
             GameManager.singleton.ChangePlayerName_ServerRpc(Player.owningPlayer.playerIndex, currentNameInput);
-            NameConfirmed?.Invoke(currentNameInput);
+            Player.NameConfirmed?.Invoke(currentNameInput);
         }
 
     }
