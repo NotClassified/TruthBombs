@@ -101,26 +101,13 @@ namespace UIState
                 }
             }
 
-            //replace tokens in questions
+            //set questions and replace tokens in questions
+            List<FixedString128Bytes> questions = GameManager.singleton.GetCurrentQuestionCards();
+            int targetPlayerIndex = m_pendingAnswerSheets[0].targetPlayerIndex;
             for (int i = 0; i < m_questionCardButtons.Count; i++)
             {
                 TextMeshProUGUI cardText = m_questionCardButtons[i].gameObject.GetComponentInChildren<TextMeshProUGUI>();
-                if (cardText.text.Contains("<leftPlayer>"))
-                {
-                    int leftPlayerIndex = PlayerManager.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, 1);
-                    string tokenValue = PlayerManager.GetPlayerName(leftPlayerIndex).ToString();
-
-                    string newQuestion = cardText.text.Replace("<leftPlayer>", tokenValue);
-                    cardText.text = newQuestion;
-                }
-                if (cardText.text.Contains("<rightPlayer>"))
-                {
-                    int rightPlayerIndex = PlayerManager.GetPlayerIndex(m_pendingAnswerSheets[0].targetPlayerIndex, -1);
-                    string tokenValue = PlayerManager.GetPlayerName(rightPlayerIndex).ToString();
-
-                    string newQuestion = cardText.text.Replace("<rightPlayer>", tokenValue);
-                    cardText.text = newQuestion;
-                }
+                cardText.SetText(DataManager.ReplaceTokens(questions[i].ToString(), targetPlayerIndex));
             }
 
             //target player's name
@@ -218,8 +205,11 @@ namespace UIState
         //========================================================================
         public void SetAnswerInput(string newInput)
         {
-            if (newInput.Length > 128)
+            if (newInput.Length > 128 - 3)
+            {
+                answerInput.text = m_currentAnswerInput;
                 return; //prevent a name that exceeds the "FixedString128Bytes" size
+            }
 
             m_currentAnswerInput = newInput;
         }

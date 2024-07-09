@@ -795,7 +795,10 @@ public class GameManager : NetworkBehaviour
             }
             else if (IsServer)
             {
-                currentTieData = new TieData(playerTieIndexes, DataManager.singleton.GetRandomQuestion(currentQuestionCards));
+                //initialize tie data
+                int randomQuestion = DataManager.singleton.GetRandomQuestion(currentQuestionCards, allowTokens: false);
+                currentTieData = new TieData(playerTieIndexes, randomQuestion);
+                //sync tie data
                 SyncTieQuestion_ClientRpc(currentTieData.questionIndex);
                 foreach (TieData.TiePlayer tiePlayer in currentTieData.tiePlayers)
                 {

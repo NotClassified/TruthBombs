@@ -174,8 +174,11 @@ namespace UIState
         //========================================================================
         public void SetAnswerInput(string newInput)
         {
-            if (newInput.Length > 128)
+            if (newInput.Length > 128 - 3)
+            {
+                answerInput.text = m_currentAnswerInput;
                 return; //prevent a name that exceeds the "FixedString128Bytes" size
+            }
 
             m_currentAnswerInput = newInput;
         }

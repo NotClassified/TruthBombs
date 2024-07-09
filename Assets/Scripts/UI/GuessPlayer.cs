@@ -119,7 +119,7 @@ namespace UIState
                         cardObject.GetComponent<Button>().image.color = UIManager.singleton.defaultUIColor;
 
                     TextMeshProUGUI questionCardText = cardObject.GetChild(0).GetComponent<TextMeshProUGUI>();
-                    questionCardText.SetText(questions[i].ToString());
+                    questionCardText.SetText(DataManager.ReplaceTokens(questions[i].ToString(), presentingSheet));
 
                     TextMeshProUGUI answerCardText = cardObject.GetChild(1).GetComponent<TextMeshProUGUI>();
                     answerCardText.SetText(GameManager.singleton.answerSheets[presentingSheet].cardAnswers[i].answerString.ToString());
