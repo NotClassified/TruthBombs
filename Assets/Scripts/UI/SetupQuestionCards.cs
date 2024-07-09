@@ -207,8 +207,11 @@ namespace UIState
 
         public void CustomQuewstionInput(string newInput)
         {
-            if (newInput.Length > 128)
+            if (newInput.Length > 128 - 3)
+            {
+                customQuestionInput.text = m_currentCustomInput;
                 return; //prevent input that exceeds the "FixedString128Bytes" size
+            }
 
             m_currentCustomInput = newInput;
         }

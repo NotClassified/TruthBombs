@@ -26,9 +26,9 @@ namespace UIState
         public TextMeshProUGUI encryptionToggleText;
         public static string encryptionType = "";
 
-        bool connecting = false;
+        bool m_connecting = false;
 
-        bool isUsingRelay;
+        bool m_isUsingRelay;
 
         //========================================================================
         private async void Start()
@@ -39,9 +39,9 @@ namespace UIState
 
             networkManager.OnTransportFailure += ConnectionFailure;
 
-            isUsingRelay = networkManager.GetComponent<UnityTransport>().Protocol == UnityTransport.ProtocolType.RelayUnityTransport;
+            m_isUsingRelay = networkManager.GetComponent<UnityTransport>().Protocol == UnityTransport.ProtocolType.RelayUnityTransport;
 
-            if (!isUsingRelay)
+            if (!m_isUsingRelay)
             {
                 ConnectionFailure("Not using Unity Relay Service");
                 return;
@@ -85,9 +85,9 @@ namespace UIState
         //========================================================================
         public void StartHost_Button()
         {
-            if (connecting)
+            if (m_connecting)
                 return;
-            connecting = true;
+            m_connecting = true;
 
             connectionFeedbackText.gameObject.SetActive(true);
             connectionFeedbackText.SetText("Connecting...");
@@ -96,9 +96,9 @@ namespace UIState
         }
         public void StartClient_Button()
         {
-            if (connecting)
+            if (m_connecting)
                 return;
-            connecting = true;
+            m_connecting = true;
 
             connectionFeedbackText.gameObject.SetActive(true);
             connectionFeedbackText.SetText("Connecting...");
@@ -127,7 +127,7 @@ namespace UIState
 
             try
             {
-                if (!isUsingRelay)
+                if (!m_isUsingRelay)
                 {
                     NetworkManager.Singleton.StartHost();
                     return;
@@ -157,7 +157,7 @@ namespace UIState
         async void StartClient()
         {
             string joinCode = joinCodeInput.text;
-            if ((joinCode == null || joinCode == "") && isUsingRelay)
+            if ((joinCode == null || joinCode == "") && m_isUsingRelay)
             {
                 ConnectionFailure("Please Input Join Code");
                 return;
@@ -165,7 +165,7 @@ namespace UIState
 
             try
             {
-                if (!isUsingRelay)
+                if (!m_isUsingRelay)
                 {
                     NetworkManager.Singleton.StartClient();
                     return;
@@ -191,7 +191,7 @@ namespace UIState
         void ConnectionFailure() => ConnectionFailure("Connection Failure");
         void ConnectionFailure(string message)
         {
-            connecting = false;
+            m_connecting = false;
 
             connectionFeedbackText.gameObject.SetActive(true);
             connectionFeedbackText.SetText(message);

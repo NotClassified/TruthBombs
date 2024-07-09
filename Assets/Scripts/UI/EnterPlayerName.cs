@@ -9,39 +9,43 @@ namespace UIState
 {
     public class EnterPlayerName : StateBase
     {
-        bool confirmingName;
+        bool m_confirmingName;
 
-        string currentNameInput = "";
+        string m_currentNameInput = "";
+        public TMP_InputField nameInput;
 
         public TextMeshProUGUI joinCodeText;
 
         public override void OnEnter()
         {
             base.OnEnter();
-            confirmingName = false;
+            m_confirmingName = false;
 
             joinCodeText.SetText("Join Code: " + GameManager.singleton.currentJoinCode);
         }
 
         public void NewTextInput(string newText)
         {
-            if (newText.Length > 32)
+            if (newText.Length > 32 - 3)
+            {
+                nameInput.text = m_currentNameInput;
                 return; //prevent a name that exceeds the "FixedString32Bytes" size
+            }
 
-            currentNameInput = newText;
+            m_currentNameInput = newText;
         }
 
         public void ConfirmName()
         {
-            if (confirmingName)
+            if (m_confirmingName)
                 return;
-            confirmingName = true;
+            m_confirmingName = true;
 
-            if (currentNameInput == "")
-                currentNameInput = "Player " + Player.owningPlayer.playerIndex.ToString();
+            if (m_currentNameInput == "")
+                m_currentNameInput = "Player " + Player.owningPlayer.playerIndex.ToString();
 
-            GameManager.singleton.ChangePlayerName_ServerRpc(Player.owningPlayer.playerIndex, currentNameInput);
-            Player.NameConfirmed?.Invoke(currentNameInput);
+            GameManager.singleton.ChangePlayerName_ServerRpc(Player.owningPlayer.playerIndex, m_currentNameInput);
+            Player.NameConfirmed?.Invoke(m_currentNameInput);
         }
 
     }

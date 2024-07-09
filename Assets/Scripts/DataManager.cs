@@ -10,7 +10,7 @@ public class DataManager : MonoBehaviour
     public static DataManager singleton;
 
     QuestionData m_currentData;
-    string defaultQuestionsPath;
+    string m_defaultQuestionsPath;
 
     //========================================================================
     private void Awake()
@@ -19,7 +19,7 @@ public class DataManager : MonoBehaviour
     }
     private void Start()
     {
-        defaultQuestionsPath = Application.persistentDataPath + "/DefaultQuestions.json";
+        m_defaultQuestionsPath = Application.persistentDataPath + "/DefaultQuestions.json";
 
         if (!DataExists())
         {
@@ -35,7 +35,7 @@ public class DataManager : MonoBehaviour
     {
         //DeleteDataFile(); //for overwriting
 
-        using (FileStream stream = File.Open(defaultQuestionsPath, FileMode.OpenOrCreate, FileAccess.ReadWrite))
+        using (FileStream stream = File.Open(m_defaultQuestionsPath, FileMode.OpenOrCreate, FileAccess.ReadWrite))
         {
             using (StreamWriter writer = new StreamWriter(stream))
             {
@@ -52,7 +52,7 @@ public class DataManager : MonoBehaviour
             return;
         }
 
-        using (FileStream stream = File.Open(defaultQuestionsPath, FileMode.Open, FileAccess.ReadWrite))
+        using (FileStream stream = File.Open(m_defaultQuestionsPath, FileMode.Open, FileAccess.ReadWrite))
         {
             using (StreamReader reader = new StreamReader(stream))
             {
@@ -64,7 +64,7 @@ public class DataManager : MonoBehaviour
     void LoadData()
     {
     }
-    bool DataExists() => File.Exists(defaultQuestionsPath);
+    bool DataExists() => File.Exists(m_defaultQuestionsPath);
 
     //========================================================================
     string ConvertDataToJson(bool print)
@@ -87,7 +87,29 @@ public class DataManager : MonoBehaviour
     //========================================================================
     public int GetQuestionCount() => m_currentData.questions.Length;
     public FixedString128Bytes GetQuestion(int index) => m_currentData.questions[index];
-    public int GetRandomQuestion(List<int> excludeIndexes)
+    /// <summary>
+    /// replaces tokens in questions such as "&lt;leftPlayer&gt;" which will be the left player's name
+    /// </summary>
+    public static string ReplaceTokens(string question, int targetPlayerIndex)
+    {
+        if (question.Contains("<leftPlayer>"))
+        {
+            int leftPlayerIndex = PlayerManager.GetPlayerIndex(targetPlayerIndex, 1);
+            string tokenValue = PlayerManager.GetPlayerName(leftPlayerIndex).ToString();
+
+            question = question.Replace("<leftPlayer>", tokenValue);
+        }
+        if (question.Contains("<rightPlayer>"))
+        {
+            int rightPlayerIndex = PlayerManager.GetPlayerIndex(targetPlayerIndex, -1);
+            string tokenValue = PlayerManager.GetPlayerName(rightPlayerIndex).ToString();
+
+            question = question.Replace("<rightPlayer>", tokenValue);
+        }
+        return question;
+    }
+
+    public int GetRandomQuestion(List<int> excludeIndexes, bool allowTokens = true)
     {
         int randomIndex = -1;
         bool valid = false;
@@ -96,7 +118,7 @@ public class DataManager : MonoBehaviour
         int inifiniteCount = 0;
         while (!valid && inifiniteCount++ < 1000000)
         {
-            randomIndex = Random.Range(0, questionAmount);
+            randomIndex = UnityEngine.Random.Range(0, questionAmount);
 
             valid = true;
             foreach (int exclude in excludeIndexes)
@@ -106,6 +128,13 @@ public class DataManager : MonoBehaviour
                     valid = false;
                     break;
                 }
+            }
+
+            if (!allowTokens)
+            {
+                string question = m_currentData.questions[randomIndex];
+                if (question.Contains("<") && question.Contains(">"))
+                    valid = false;
             }
         }
         if (inifiniteCount >= 1000000)

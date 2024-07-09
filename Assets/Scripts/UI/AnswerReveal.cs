@@ -55,6 +55,7 @@ namespace UIState
                 }
                 m_questionAnswerCards.Clear();
 
+                int presentingPlayer = GameManager.GetPresentingSheetIndex();
                 foreach (FixedString128Bytes question in GameManager.singleton.GetCurrentQuestionCards())
                 {
                     Transform cardObject = Instantiate(questionAnswerCardPrefab, questionAnswerCardParent).transform;
@@ -63,7 +64,8 @@ namespace UIState
                     SetCardColor(cardObject, UIManager.singleton.defaultUIColor);
 
                     TextMeshProUGUI questionCardText = cardObject.GetChild(0).GetComponent<TextMeshProUGUI>();
-                    questionCardText.SetText(question.ToString());
+                    questionCardText.SetText(DataManager.ReplaceTokens(question.ToString(), presentingPlayer));
+
                     TextMeshProUGUI answerCardText = cardObject.GetChild(1).GetComponent<TextMeshProUGUI>();
                     answerCardText.SetText("...");
                 }
